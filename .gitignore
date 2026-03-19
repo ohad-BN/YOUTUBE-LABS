@@ -1,0 +1,6 @@
+.venv
+PLAN
+.devcontainer
+.skills
+backend/alembic/versions/
+__pycache__
