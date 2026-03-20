@@ -1,9 +1,16 @@
 import { useEffect, useState } from "react";
-import { VelioClient } from "../../services/ApiClient";
+import { toast } from "sonner";
+import { VelioClient, DiscoveryClient, FolderChannel } from "../../services/ApiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
-import { Folder, Play, Plus } from "lucide-react";
+import { Folder, Play, Plus, Trash2, Users } from "lucide-react";
+
+function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${Math.round(n / 1_000)}K`;
+  return n.toString();
+}
 
 export function VelioDashboard() {
   const [folders, setFolders] = useState<any[]>([]);
@@ -11,6 +18,8 @@ export function VelioDashboard() {
   const [folderVideos, setFolderVideos] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
+  const [activeView, setActiveView] = useState<'channels' | 'videos'>('channels');
+  const [folderChannels, setFolderChannels] = useState<FolderChannel[]>([]);
 
   useEffect(() => {
     async function loadFolders() {
@@ -33,34 +42,22 @@ export function VelioDashboard() {
     }
   }, [activeFolder]);
 
+  useEffect(() => {
+    if (activeFolder) {
+      DiscoveryClient.getFolderChannels(activeFolder).then(setFolderChannels).catch(() => setFolderChannels([]));
+    }
+  }, [activeFolder, activeView]);
+
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) return;
-    const newFolder = await VelioClient.createFolder(newFolderName).catch(() => null);
+    const folderName = newFolderName.trim();
+    const newFolder = await VelioClient.createFolder(folderName).catch(() => null);
     if (newFolder) {
       setFolders((prev) => [...prev, newFolder]);
       setNewFolderName("");
       setActiveFolder(newFolder.id);
+      toast.success(`Folder "${folderName}" created`);
     }
-  };
-
-  const handleTrackChannel = async () => {
-    if (!activeFolder) return;
-    const youtubeId = prompt("Enter a YouTube Channel ID to track (e.g., UCX6OQ3DkcsbYNE6H8uQQuVA):");
-    if (!youtubeId) return;
-    
-    setLoading(true);
-    const result = await VelioClient.trackChannel(youtubeId).catch(() => {
-      alert("Failed to track channel. Check backend logs or API key.");
-      return null;
-    });
-    
-    if (result && result.channel_id) {
-      await VelioClient.addChannelToFolder(activeFolder as number, result.channel_id);
-      // Refresh videos
-      const data = await VelioClient.getFolderVideos(activeFolder as number).catch(() => []);
-      setFolderVideos(data || []);
-    }
-    setLoading(false);
   };
 
   return (
@@ -71,7 +68,7 @@ export function VelioDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-8">
-        
+
         {/* Left Sidebar: Folders List */}
         <div className="space-y-4">
           <Card className="glassmorphism border-t-synthwave-purple border-t-2">
@@ -80,8 +77,8 @@ export function VelioDashboard() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
-                <Input 
-                  placeholder="New Folder..." 
+                <Input
+                  placeholder="New Folder..."
                   value={newFolderName}
                   onChange={(e) => setNewFolderName(e.target.value)}
                   className="bg-slate-900 border-slate-700 text-slate-200 h-9"
@@ -96,15 +93,28 @@ export function VelioDashboard() {
                   <p className="text-sm text-slate-500 text-center py-4">No folders yet</p>
                 ) : (
                   folders.map((folder) => (
-                    <Button
-                      key={folder.id}
-                      variant={activeFolder === folder.id ? "secondary" : "ghost"}
-                      className={`w-full justify-start gap-3 ${activeFolder === folder.id ? "bg-synthwave-magenta/20 text-synthwave-magenta border border-synthwave-magenta/50" : "text-slate-400 hover:text-slate-200"}`}
-                      onClick={() => setActiveFolder(folder.id)}
-                    >
-                      <Folder className="w-4 h-4" />
-                      {folder.name}
-                    </Button>
+                    <div key={folder.id} className="relative group flex items-center">
+                      <Button
+                        variant={activeFolder === folder.id ? "secondary" : "ghost"}
+                        className={`w-full justify-start gap-3 ${activeFolder === folder.id ? "bg-synthwave-magenta/20 text-synthwave-magenta border border-synthwave-magenta/50" : "text-slate-400 hover:text-slate-200"}`}
+                        onClick={() => setActiveFolder(folder.id)}
+                      >
+                        <Folder className="w-4 h-4" />
+                        {folder.name}
+                      </Button>
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          await DiscoveryClient.deleteFolder(folder.id);
+                          setFolders((prev) => prev.filter((f) => f.id !== folder.id));
+                          if (activeFolder === folder.id) setActiveFolder(null);
+                          toast.success("Folder deleted");
+                        }}
+                        className="absolute right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-900/40 text-red-500"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   ))
                 )}
               </div>
@@ -121,11 +131,27 @@ export function VelioDashboard() {
                 Aggregated Feed
               </CardTitle>
               <p className="text-sm text-slate-400">Latest videos from all channels in this folder</p>
+              <div className="flex gap-2 mt-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setActiveView('channels')}
+                  className={activeView === 'channels' ? 'bg-synthwave-magenta/20 text-synthwave-magenta border border-synthwave-magenta/50' : 'text-slate-400'}
+                >
+                  <Users className="w-3.5 h-3.5 mr-1.5" /> Channels
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setActiveView('videos')}
+                  className={activeView === 'videos' ? 'bg-synthwave-magenta/20 text-synthwave-magenta border border-synthwave-magenta/50' : 'text-slate-400'}
+                >
+                  Videos
+                </Button>
+              </div>
             </div>
             {activeFolder && (
-              <Button onClick={handleTrackChannel} variant="outline" className="border-synthwave-purple text-synthwave-purple hover:bg-synthwave-purple/10">
-                + Track Channel
-              </Button>
+              <p className="text-xs text-slate-500">Use <strong className="text-synthwave-cyan">Discover Channels</strong> to add channels here</p>
             )}
           </CardHeader>
           <CardContent>
@@ -133,34 +159,93 @@ export function VelioDashboard() {
               <div className="py-20 text-center text-synthwave-magenta animate-pulse">Synchronizing folder streams...</div>
             ) : !activeFolder ? (
               <div className="py-20 text-center text-slate-500">Select or create a folder to view the feed.</div>
-            ) : folderVideos.length === 0 ? (
-              <div className="py-20 text-center text-slate-500">
-                No videos found. Map channels to this folder to start tracking.
-              </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {folderVideos.map((video, idx) => (
-                  <div key={idx} className="flex gap-4 p-3 rounded-lg bg-slate-900/50 border border-slate-800 hover:border-synthwave-magenta transition-colors group cursor-pointer">
-                    <div className="w-32 h-20 bg-slate-800 rounded overflow-hidden relative flex-shrink-0">
-                      {video.thumbnail_url ? (
-                        <img src={video.thumbnail_url} alt={video.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Play className="w-6 h-6 text-slate-600" />
+              <>
+                {activeView === 'channels' && activeFolder && (
+                  folderChannels.length === 0 ? (
+                    <div className="py-16 text-center text-slate-500 text-sm">
+                      No channels in this folder yet. Use <span className="text-synthwave-cyan">Discover Channels</span> to add some.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {folderChannels.map((ch) => (
+                        <div key={ch.id} className="flex items-center gap-4 p-3 rounded-lg bg-slate-900/50 border border-slate-800 hover:border-synthwave-magenta transition-colors group">
+                          {ch.thumbnail_url ? (
+                            <img src={ch.thumbnail_url} alt={ch.title} className="w-10 h-10 rounded-full object-cover border border-slate-700" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center">
+                              <Users className="w-4 h-4 text-slate-600" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-200 truncate">{ch.title}</p>
+                            <p className="text-xs text-slate-500">{formatCount(ch.subscriber_count)} subscribers</p>
+                          </div>
+                          {ch.grade && (
+                            <span className="text-xs font-bold text-synthwave-cyan bg-synthwave-cyan/10 border border-synthwave-cyan/30 px-2 py-0.5 rounded">
+                              {ch.grade}
+                            </span>
+                          )}
+                          <button
+                            title="Remove from this folder"
+                            onClick={async () => {
+                              await DiscoveryClient.removeChannelFromFolder(activeFolder as number, ch.id);
+                              setFolderChannels((prev) => prev.filter((c) => c.id !== ch.id));
+                              toast.success("Removed from folder");
+                            }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-red-900/40 text-red-500"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            title="Delete channel entirely (removes from all folders)"
+                            onClick={async () => {
+                              await DiscoveryClient.deleteChannel(ch.id);
+                              setFolderChannels((prev) => prev.filter((c) => c.id !== ch.id));
+                              toast.error("Channel deleted", { description: "All associated data has been removed." });
+                            }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-orange-900/40 text-orange-500"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                      ))}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-200 line-clamp-2 leading-snug group-hover:text-synthwave-magenta transition-colors">{video.title}</p>
-                      <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">
-                        <span className="text-synthwave-cyan">{video.view_count.toLocaleString()} views</span>
-                        <span>{new Date(video.published_at).toLocaleDateString()}</span>
-                      </div>
+                  )
+                )}
+
+                {activeView === 'videos' && activeFolder && (
+                  folderVideos.length === 0 ? (
+                    <div className="py-20 text-center text-slate-500">
+                      No videos found. Map channels to this folder to start tracking.
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {folderVideos.map((video, idx) => (
+                        <div key={idx} className="flex gap-4 p-3 rounded-lg bg-slate-900/50 border border-slate-800 hover:border-synthwave-magenta transition-colors group cursor-pointer">
+                          <div className="w-32 h-20 bg-slate-800 rounded overflow-hidden relative flex-shrink-0">
+                            {video.thumbnail_url ? (
+                              <img src={video.thumbnail_url} alt={video.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <Play className="w-6 h-6 text-slate-600" />
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-200 line-clamp-2 leading-snug group-hover:text-synthwave-magenta transition-colors">{video.title}</p>
+                            <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">
+                              <span className="text-synthwave-cyan">{video.view_count.toLocaleString()} views</span>
+                              <span>{new Date(video.published_at).toLocaleDateString()}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                )}
+              </>
             )}
           </CardContent>
         </Card>

@@ -8,11 +8,14 @@ class SavedIdeaBase(BaseModel):
     video_reference_id: Optional[int] = None
 
 class SavedIdeaCreate(SavedIdeaBase):
-    pass
+    status: str = "backlog"
+    notes: Optional[str] = None
 
 class SavedIdeaResponse(SavedIdeaBase):
     id: int
     user_id: int
+    status: str
+    notes: Optional[str] = None
     created_at: datetime
     
     model_config = ConfigDict(from_attributes=True)

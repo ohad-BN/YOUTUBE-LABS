@@ -17,3 +17,12 @@ class ChannelResponse(ChannelBase):
     grade: Optional[str]
     
     model_config = ConfigDict(from_attributes=True)
+
+class ChannelSearchResult(BaseModel):
+    youtube_channel_id: str
+    title: str
+    description: str
+    thumbnail_url: Optional[str] = None
+    subscriber_count: int = 0
+    video_count: int = 0
+    view_count: int = 0

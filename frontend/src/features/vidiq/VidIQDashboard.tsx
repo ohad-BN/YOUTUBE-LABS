@@ -3,16 +3,32 @@ import { VidIQClient } from "../../services/ApiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
-import { Search, Flame, Save, FolderOpen } from "lucide-react";
+import { Badge } from "../../components/ui/badge";
+import { Flame, Save, FolderOpen, Tag } from "lucide-react";
+
+const STATUS_CYCLE: Record<string, string> = {
+  backlog: "in-progress",
+  "in-progress": "published",
+  published: "discarded",
+  discarded: "backlog",
+};
+const STATUS_COLORS: Record<string, string> = {
+  backlog: "text-slate-400 border-slate-700",
+  "in-progress": "text-synthwave-cyan border-synthwave-cyan/50",
+  published: "text-green-400 border-green-700",
+  discarded: "text-red-400 border-red-800",
+};
 
 export function VidIQDashboard() {
-  const [keyword, setKeyword] = useState("");
-  const [scoreData, setScoreData] = useState<any>(null);
-  const [loadingScore, setLoadingScore] = useState(false);
-  
   const [ideaTitle, setIdeaTitle] = useState("");
   const [ideaCategory, setIdeaCategory] = useState("");
+  const [ideaNotes, setIdeaNotes] = useState("");
   const [library, setLibrary] = useState<any[]>([]);
+  const [filterCategory, setFilterCategory] = useState("");
+  const [sortBy, setSortBy] = useState<"date" | "status">("date");
+  const [videoIdInput, setVideoIdInput] = useState("");
+  const [keywordResult, setKeywordResult] = useState<{ video_id: string; title: string; keywords: string[] } | null>(null);
+  const [loadingKeywords, setLoadingKeywords] = useState(false);
 
   useEffect(() => {
     loadLibrary();
@@ -23,22 +39,44 @@ export function VidIQDashboard() {
     setLibrary(data || []);
   }
 
-  const handleScore = async () => {
-    if (!keyword.trim()) return;
-    setLoadingScore(true);
-    const result = await VidIQClient.scoreKeyword(keyword).catch(() => null);
-    setScoreData(result);
-    setLoadingScore(false);
+  const handleExtractKeywords = async () => {
+    const vid = videoIdInput.trim();
+    if (!vid) return;
+    setLoadingKeywords(true);
+    setKeywordResult(null);
+    const result = await VidIQClient.extractVideoKeywords(vid).catch(() => null);
+    setKeywordResult(result);
+    setLoadingKeywords(false);
+  };
+
+  const handleStatusClick = async (idea: any) => {
+    const next = STATUS_CYCLE[idea.status ?? "backlog"] ?? "backlog";
+    await VidIQClient.updateIdeaStatus(idea.id, next).catch(() => {});
+    setLibrary((prev) => prev.map((i) => i.id === idea.id ? { ...i, status: next } : i));
   };
 
   const handleSaveIdea = async () => {
     if (!ideaTitle.trim()) return;
-    const idea = await VidIQClient.saveIdea(ideaTitle, ideaCategory || "Uncategorized").catch(() => null);
+    const idea = await VidIQClient.saveIdea(ideaTitle, ideaCategory || "Uncategorized", ideaNotes || undefined).catch(() => null);
     if (idea) {
       setIdeaTitle("");
+      setIdeaCategory("");
+      setIdeaNotes("");
       setLibrary((prev) => [idea, ...prev]);
     }
   };
+
+  const displayedLibrary = library
+    .filter((idea) =>
+      filterCategory.trim() === "" ||
+      (idea.category ?? "").toLowerCase().includes(filterCategory.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (sortBy === "status") {
+        return (a.status ?? "").localeCompare(b.status ?? "");
+      }
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -48,49 +86,58 @@ export function VidIQDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
-        {/* Keyword Scoring Engine */}
+
+        {/* Video Keyword Extractor */}
         <Card className="glassmorphism border-t-synthwave-cyan border-t-2 relative">
           <CardHeader>
             <CardTitle className="text-xl font-medium text-white flex items-center gap-2">
-              <Search className="w-5 h-5 text-synthwave-cyan" />
-              Keyword Score Engine
+              <Tag className="w-5 h-5 text-synthwave-cyan" />
+              Video Keyword Extractor
             </CardTitle>
-            <p className="text-sm text-slate-400">AI-driven search volume vs competition</p>
+            <p className="text-sm text-slate-400">Extract keywords from any YouTube video</p>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-4">
             <div className="flex gap-2">
-              <Input 
-                placeholder="Enter a keyword..." 
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleScore()}
-                className="bg-slate-900 border-slate-700 text-slate-200"
+              <Input
+                placeholder="YouTube Video ID (e.g. dQw4w9WgXcQ)"
+                value={videoIdInput}
+                onChange={(e) => setVideoIdInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleExtractKeywords()}
+                className="bg-slate-900 border-slate-700 text-slate-200 flex-1"
               />
-              <Button onClick={handleScore} disabled={loadingScore} className="bg-synthwave-cyan text-slate-900 hover:bg-cyan-500 synth-glow-cyan font-bold transition-all">
-                {loadingScore ? "Scoring..." : "Scan"}
+              <Button
+                onClick={handleExtractKeywords}
+                disabled={loadingKeywords}
+                className="bg-synthwave-cyan/20 hover:bg-synthwave-cyan/30 border border-synthwave-cyan/50 text-synthwave-cyan"
+              >
+                {loadingKeywords ? "..." : "Extract"}
               </Button>
             </div>
 
-            {scoreData && (
-              <div className="p-6 rounded-lg bg-slate-900/80 border border-slate-800 animate-in fade-in zoom-in-95 mt-4">
-                <div className="text-center mb-6">
-                  <p className="text-sm text-slate-400 uppercase tracking-widest mb-2">Overall Score</p>
-                  <div className={`text-6xl font-bold font-mono drop-shadow-[0_0_15px_rgba(0,255,255,0.4)] ${scoreData.overall_score >= 60 ? 'text-synthwave-cyan' : scoreData.overall_score >= 40 ? 'text-yellow-400' : 'text-red-500'}`}>
-                    {scoreData.overall_score}
-                    <span className="text-2xl text-slate-500">/100</span>
-                  </div>
-                </div>
-                
-                <div className="flex justify-between mt-4 gap-4">
-                  <div className="flex-1 bg-slate-800/50 p-4 rounded text-center border-b-2 border-synthwave-cyan">
-                    <p className="text-xs text-slate-400 mb-1">Volume</p>
-                    <p className="text-2xl font-bold text-white">{scoreData.search_volume}</p>
-                  </div>
-                  <div className="flex-1 bg-slate-800/50 p-4 rounded text-center border-b-2 border-red-500">
-                    <p className="text-xs text-slate-400 mb-1">Competition</p>
-                    <p className="text-2xl font-bold text-white">{scoreData.competition}</p>
-                  </div>
+            {loadingKeywords && (
+              <div className="py-8 text-center text-synthwave-cyan animate-pulse text-sm">Extracting keywords...</div>
+            )}
+
+            {!loadingKeywords && keywordResult === null && (
+              <div className="py-8 text-center text-slate-500 text-sm">Enter a video ID and click Extract to see its keywords.</div>
+            )}
+
+            {!loadingKeywords && keywordResult && keywordResult.keywords.length === 0 && (
+              <div className="py-8 text-center text-slate-500 text-sm">No keywords found for this video.</div>
+            )}
+
+            {!loadingKeywords && keywordResult && keywordResult.keywords.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-sm font-medium text-slate-200 truncate">{keywordResult.title}</p>
+                <div className="flex flex-wrap gap-2">
+                  {keywordResult.keywords.map((kw, i) => (
+                    <Badge
+                      key={i}
+                      className="bg-slate-800 text-slate-300 border border-slate-700 hover:border-synthwave-cyan transition-colors"
+                    >
+                      {kw}
+                    </Badge>
+                  ))}
                 </div>
               </div>
             )}
@@ -107,16 +154,17 @@ export function VidIQDashboard() {
             <p className="text-sm text-slate-400">Save viral configurations and script hooks</p>
           </CardHeader>
           <CardContent className="flex flex-col flex-1 space-y-4">
+            {/* Idea creation form */}
             <div className="flex flex-col gap-2">
-              <Input 
-                placeholder="Video title / Hook idea..." 
+              <Input
+                placeholder="Video title / Hook idea..."
                 value={ideaTitle}
                 onChange={(e) => setIdeaTitle(e.target.value)}
                 className="bg-slate-900 border-slate-700 text-slate-200"
               />
               <div className="flex gap-2">
-                <Input 
-                  placeholder="Category (e.g. Hooks, Outliers)" 
+                <Input
+                  placeholder="Category (e.g. Hooks, Outliers)"
                   value={ideaCategory}
                   onChange={(e) => setIdeaCategory(e.target.value)}
                   className="bg-slate-900 border-slate-700 text-slate-200 flex-1"
@@ -125,19 +173,54 @@ export function VidIQDashboard() {
                   <Save className="w-4 h-4 mr-2" /> Save
                 </Button>
               </div>
+              <textarea
+                placeholder="Notes (optional)..."
+                value={ideaNotes}
+                onChange={(e) => setIdeaNotes(e.target.value)}
+                rows={2}
+                className="w-full rounded-md bg-slate-900 border border-slate-700 text-slate-200 text-sm px-3 py-2 resize-none placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-synthwave-purple"
+              />
             </div>
 
-            <div className="flex-1 mt-4 border border-slate-800/50 rounded-lg bg-slate-900/30 overflow-y-auto min-h-[250px] p-2 space-y-2">
-              {library.length === 0 ? (
+            {/* Filter and sort controls */}
+            <div className="flex gap-2 items-center">
+              <Input
+                placeholder="Filter by category..."
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="bg-slate-900 border-slate-700 text-slate-200 text-sm flex-1"
+              />
+              <Button
+                onClick={() => setSortBy((s) => s === "date" ? "status" : "date")}
+                className="text-xs px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 whitespace-nowrap"
+              >
+                Sort: {sortBy === "date" ? "Date" : "Status"}
+              </Button>
+            </div>
+
+            {/* Library list */}
+            <div className="flex-1 mt-1 border border-slate-800/50 rounded-lg bg-slate-900/30 overflow-y-auto min-h-[250px] p-2 space-y-2">
+              {displayedLibrary.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-slate-500 text-sm">Library is empty.</div>
               ) : (
-                library.map((idea, idx) => (
-                  <div key={idx} className="p-3 bg-slate-800/40 rounded hover:bg-slate-800 transition-colors border-l-2 border-synthwave-purple flex justify-between items-center group">
-                    <div>
+                displayedLibrary.map((idea, idx) => (
+                  <div key={idx} className="p-3 bg-slate-800/40 rounded hover:bg-slate-800 transition-colors border-l-2 border-synthwave-purple flex justify-between items-start group">
+                    <div className="flex-1 min-w-0 mr-2">
                       <p className="text-sm font-medium text-slate-200 group-hover:text-white">{idea.title}</p>
                       <p className="text-xs text-synthwave-purple/80">{idea.category}</p>
+                      {idea.notes && (
+                        <p className="text-xs text-slate-400 mt-1 line-clamp-2">{idea.notes}</p>
+                      )}
                     </div>
-                    <span className="text-xs text-slate-500">{new Date(idea.created_at).toLocaleDateString()}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => handleStatusClick(idea)}
+                        className={`text-xs px-2 py-0.5 rounded border cursor-pointer ${STATUS_COLORS[idea.status ?? "backlog"]}`}
+                      >
+                        {idea.status ?? "backlog"}
+                      </button>
+                      <span className="text-xs text-slate-500">{new Date(idea.created_at).toLocaleDateString()}</span>
+                    </div>
                   </div>
                 ))
               )}

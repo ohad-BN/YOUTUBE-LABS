@@ -1,25 +1,34 @@
 import { useEffect, useState } from "react";
-import { ViewStatsClient } from "../../services/ApiClient";
+import { ViewStatsClient, DiscoveryClient } from "../../services/ApiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
 import { Activity, Zap } from "lucide-react";
+import { VideoDetailModal } from "./VideoDetailModal";
 
 export function ViewStatsDashboard() {
+  const [trackedChannels, setTrackedChannels] = useState<any[]>([]);
+  const [activeChannelId, setActiveChannelId] = useState<number | null>(null);
   const [outliers, setOutliers] = useState<any[]>([]);
   const [velocity, setVelocity] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  // In a real app, channelId would be selected by the user. Hardcoding 1 for demo.
-  const activeChannelId = 1;
+  const [loading, setLoading] = useState(false);
+  const [selectedVideoId, setSelectedVideoId] = useState<number | null>(null);
 
   useEffect(() => {
+    DiscoveryClient.getTrackedChannels()
+      .then((data) => {
+        setTrackedChannels(data || []);
+        if (data && data.length > 0) setActiveChannelId(data[0].id);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!activeChannelId) return;
     async function fetchData() {
       try {
         setLoading(true);
-        // We catch errors silently here so the UI still renders empty states if DB is empty
-        const outlierData = await ViewStatsClient.getOutliers(activeChannelId).catch(() => []);
+        const outlierData = await ViewStatsClient.getOutliers(activeChannelId!).catch(() => []);
         const velocityData = await ViewStatsClient.getTopVelocity(5).catch(() => []);
-        
         setOutliers(outlierData || []);
         setVelocity(velocityData || []);
       } finally {
@@ -36,6 +45,28 @@ export function ViewStatsDashboard() {
         <Zap className="w-8 h-8 text-synthwave-cyan drop-shadow-[0_0_10px_rgba(0,255,255,0.8)]" />
         <h2 className="text-3xl font-light tracking-tight text-white">ViewStats Engine</h2>
       </div>
+
+      {trackedChannels.length === 0 ? (
+        <div className="py-20 text-center text-slate-500">
+          No channels tracked yet. Use <span className="text-synthwave-cyan">Discover Channels</span> to add some.
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2 mb-6">
+          {trackedChannels.map((ch) => (
+            <button
+              key={ch.id}
+              onClick={() => setActiveChannelId(ch.id)}
+              className={`px-3 py-1.5 rounded text-sm transition-colors border ${
+                activeChannelId === ch.id
+                  ? "bg-synthwave-cyan/20 text-synthwave-cyan border-synthwave-cyan/50"
+                  : "text-slate-400 border-slate-700 hover:border-slate-500"
+              }`}
+            >
+              {ch.title}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
@@ -59,7 +90,7 @@ export function ViewStatsDashboard() {
             ) : (
               <div className="space-y-4">
                 {outliers.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-center p-3 rounded bg-slate-800/50 hover:bg-slate-800 transition-colors border-l-2 border-transparent hover:border-synthwave-magenta cursor-pointer">
+                  <div key={idx} onClick={() => setSelectedVideoId(item.video.id)} className="flex justify-between items-center p-3 rounded bg-slate-800/50 hover:bg-slate-800 transition-colors border-l-2 border-transparent hover:border-synthwave-magenta cursor-pointer">
                     <div className="truncate pr-4 flex-1">
                       <p className="text-sm font-medium text-slate-200 truncate">{item.video.title}</p>
                       <p className="text-xs text-slate-500">{new Date(item.video.published_at).toLocaleDateString()}</p>
@@ -127,6 +158,8 @@ export function ViewStatsDashboard() {
         </Card>
 
       </div>
+
+      <VideoDetailModal videoId={selectedVideoId} onClose={() => setSelectedVideoId(null)} />
     </div>
   );
 }
