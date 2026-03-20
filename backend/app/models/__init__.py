@@ -98,9 +98,35 @@ class SavedIdea(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     title: Mapped[str] = mapped_column(String(255))
     category: Mapped[Optional[str]] = mapped_column(String(100)) # e.g. folder/tag for ideas
+    status: Mapped[str] = mapped_column(String(50), default="backlog")
+    notes: Mapped[Optional[str]] = mapped_column(String(2000), nullable=True)
     video_reference_id: Mapped[Optional[int]] = mapped_column(ForeignKey("videos.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
     user: Mapped["User"] = relationship(back_populates="saved_ideas")
     video: Mapped[Optional["Video"]] = relationship(back_populates="saved_references")
+
+class Alert(Base):
+    __tablename__ = "alerts"
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    channel_id: Mapped[Optional[int]] = mapped_column(ForeignKey("tracked_channels.id", ondelete="CASCADE"), nullable=True, index=True)
+    type: Mapped[str] = mapped_column(String(50))  # "milestone" | "viral"
+    message: Mapped[str] = mapped_column(String(500))
+    is_read: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+class SavedKeyword(Base):
+    __tablename__ = "saved_keywords"
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    keyword: Mapped[str] = mapped_column(String(200))
+    source_video_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # YouTube video ID it came from
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+class KeywordCache(Base):
+    __tablename__ = "keyword_cache"
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    keyword: Mapped[str] = mapped_column(String(200), index=True)
+    suggestions: Mapped[Any] = mapped_column(JSON)  # list of suggestion strings
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

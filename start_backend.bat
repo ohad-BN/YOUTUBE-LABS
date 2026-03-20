@@ -18,6 +18,15 @@ call .venv\Scripts\activate
 echo Installing requirements...
 call pip install -r requirements.txt
 
+:: Run database migrations
+echo Running database migrations...
+alembic upgrade head
+if %errorlevel% neq 0 (
+    echo ERROR: Migrations failed. Check your DATABASE_URL in .env
+    pause
+    exit /b 1
+)
+
 :: Start the FastAPI server with auto-reload
 echo Starting FastAPI with Uvicorn...
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000

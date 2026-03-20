@@ -1,25 +1,36 @@
 import { useEffect, useState } from "react";
-import { ViewStatsClient } from "../../services/ApiClient";
+import { ViewStatsClient, DiscoveryClient, VidIQClient } from "../../services/ApiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
-import { Activity, Zap } from "lucide-react";
+import { Activity, Bookmark, Zap } from "lucide-react";
+import { toast } from "sonner";
+import { VideoDetailModal } from "./VideoDetailModal";
+import { Skeleton } from "../../components/ui/skeleton";
 
 export function ViewStatsDashboard() {
+  const [trackedChannels, setTrackedChannels] = useState<any[]>([]);
+  const [activeChannelId, setActiveChannelId] = useState<number | null>(null);
   const [outliers, setOutliers] = useState<any[]>([]);
   const [velocity, setVelocity] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  // In a real app, channelId would be selected by the user. Hardcoding 1 for demo.
-  const activeChannelId = 1;
+  const [loading, setLoading] = useState(false);
+  const [selectedVideoId, setSelectedVideoId] = useState<number | null>(null);
 
   useEffect(() => {
+    DiscoveryClient.getTrackedChannels()
+      .then((data) => {
+        setTrackedChannels(data || []);
+        if (data && data.length > 0) setActiveChannelId(data[0].id);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!activeChannelId) return;
     async function fetchData() {
       try {
         setLoading(true);
-        // We catch errors silently here so the UI still renders empty states if DB is empty
-        const outlierData = await ViewStatsClient.getOutliers(activeChannelId).catch(() => []);
+        const outlierData = await ViewStatsClient.getOutliers(activeChannelId!).catch(() => []);
         const velocityData = await ViewStatsClient.getTopVelocity(5).catch(() => []);
-        
         setOutliers(outlierData || []);
         setVelocity(velocityData || []);
       } finally {
@@ -37,6 +48,28 @@ export function ViewStatsDashboard() {
         <h2 className="text-3xl font-light tracking-tight text-white">ViewStats Engine</h2>
       </div>
 
+      {trackedChannels.length === 0 ? (
+        <div className="py-20 text-center text-slate-500">
+          No channels tracked yet. Use <span className="text-synthwave-cyan">Discover Channels</span> to add some.
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2 mb-6">
+          {trackedChannels.map((ch) => (
+            <button
+              key={ch.id}
+              onClick={() => setActiveChannelId(ch.id)}
+              className={`px-3 py-1.5 rounded text-sm transition-colors border ${
+                activeChannelId === ch.id
+                  ? "bg-synthwave-cyan/20 text-synthwave-cyan border-synthwave-cyan/50"
+                  : "text-slate-400 border-slate-700 hover:border-slate-500"
+              }`}
+            >
+              {ch.title}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
         {/* Outlier Engine UI */}
@@ -53,17 +86,39 @@ export function ViewStatsDashboard() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="py-8 text-center text-slate-500 animate-pulse">Scanning channel matrix...</div>
+              <div className="space-y-3 py-2">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="flex justify-between items-center p-3 rounded bg-slate-800/30">
+                    <div className="flex-1 space-y-2 pr-4">
+                      <Skeleton className="h-3.5 w-3/4" />
+                      <Skeleton className="h-2.5 w-1/3" />
+                    </div>
+                    <Skeleton className="h-6 w-12" />
+                  </div>
+                ))}
+              </div>
             ) : outliers.length === 0 ? (
               <div className="py-8 text-center text-slate-500">No outliers detected for this channel yet.</div>
             ) : (
               <div className="space-y-4">
                 {outliers.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-center p-3 rounded bg-slate-800/50 hover:bg-slate-800 transition-colors border-l-2 border-transparent hover:border-synthwave-magenta cursor-pointer">
+                  <div key={idx} onClick={() => setSelectedVideoId(item.video.id)} className="flex justify-between items-center p-3 rounded bg-slate-800/50 hover:bg-slate-800 transition-colors border-l-2 border-transparent hover:border-synthwave-magenta cursor-pointer">
                     <div className="truncate pr-4 flex-1">
                       <p className="text-sm font-medium text-slate-200 truncate">{item.video.title}</p>
                       <p className="text-xs text-slate-500">{new Date(item.video.published_at).toLocaleDateString()}</p>
                     </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        VidIQClient.saveIdea(item.video.title, "Outlier", undefined, item.video.id)
+                          .then(() => toast.success("Saved to Ideas library"))
+                          .catch(() => toast.error("Failed to save idea"));
+                      }}
+                      title="Save as idea"
+                      className="ml-2 p-1 rounded hover:bg-slate-700 text-slate-500 hover:text-synthwave-purple transition-colors flex-shrink-0"
+                    >
+                      <Bookmark className="w-3.5 h-3.5" />
+                    </button>
                     <div className="text-right">
                       <p className="text-lg font-bold text-synthwave-magenta drop-shadow-[0_0_8px_rgba(255,0,255,0.5)]">
                         {item.multiplier}x
@@ -97,9 +152,15 @@ export function ViewStatsDashboard() {
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableRow>
-                     <TableCell colSpan={3} className="text-center py-8 text-slate-500">Calculating velocity streams...</TableCell>
-                  </TableRow>
+                  <>
+                    {[...Array(5)].map((_, i) => (
+                      <TableRow key={i} className="border-slate-800/50">
+                        <TableCell><Skeleton className="h-3.5 w-48" /></TableCell>
+                        <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
+                        <TableCell className="text-right"><Skeleton className="h-3 w-20 ml-auto" /></TableCell>
+                      </TableRow>
+                    ))}
+                  </>
                 ) : velocity.length === 0 ? (
                   <TableRow>
                      <TableCell colSpan={3} className="text-center py-8 text-slate-500">Insufficient velocity data.</TableCell>
@@ -127,6 +188,8 @@ export function ViewStatsDashboard() {
         </Card>
 
       </div>
+
+      <VideoDetailModal videoId={selectedVideoId} onClose={() => setSelectedVideoId(null)} />
     </div>
   );
 }

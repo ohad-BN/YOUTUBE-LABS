@@ -23,4 +23,7 @@ class ProjectionsResponse(BaseModel):
     current_views: int
     daily_avg_subs: int
     daily_avg_views: int
+    estimated_monthly_revenue_low: int = 0
+    estimated_monthly_revenue_high: int = 0
     projections: List[ProjectionData]
+    upload_frequency_per_week: float = 0.0
