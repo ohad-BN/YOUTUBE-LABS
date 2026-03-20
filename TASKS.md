@@ -13,7 +13,7 @@
 - [X] Add to folder from search results
 - [X] Quick-track by URL or @handle (sidebar input)
 - [X] `GET /velio/resolve?q=` — resolve URL/handle/name to channel ID
-- [ ] Channel preview card — show upload frequency and latest video before tracking
+- [X] Channel preview card — show upload frequency and latest video before tracking
 
 ---
 
@@ -25,10 +25,10 @@
 - [X] Remove channel from folder
 - [X] Delete channel entirely
 - [X] Aggregated video feed per folder
-- [ ] Sort channels in folder — by subscriber count, average views
-- [ ] Channel card: show last upload date
-- [ ] Channel card: show average views per video
-- [ ] Folder tags — assign tags when creating a folder (model supports it, UI doesn't)
+- [X] Sort channels in folder — by subscriber count, average views
+- [X] Channel card: show last upload date
+- [X] Channel card: show average views per video
+- [X] Folder tags — assign tags when creating a folder (model supports it, UI doesn't)
 
 ---
 
@@ -42,11 +42,12 @@
 - [X] Revenue estimate — low/high CPM $2–$8 per month
 - [X] SocialBlade dashboard channel picker
 - [X] Export channel data as CSV
-- [ ] Growth projections — extend to 180 and 365 days
-- [ ] Growth chart day-range toggle — let user switch between 30 and 90 day view
+- [X] Export channel data as PDF — for sharing with brands
+- [X] Growth projections — extend to 180 and 365 days
+- [X] Growth chart day-range toggle — let user switch between 30 and 90 day view
 - [X] Upload frequency display — avg videos per week/month (compute from `video_count` + `created_at`)
 - [X] Daily gains/losses display — show +/- subs and views per day on the chart
-- [ ] Projections guard — require at least 7 days of `ChannelStatsDaily` data before showing projections
+- [X] Projections guard — require at least 7 days of `ChannelStatsDaily` data before showing projections
 - [X] Channel comparison — select 2+ channels, side-by-side metrics table
 
 ---
@@ -61,9 +62,9 @@
 - [X] Dashboard home — global VPH leaderboard + global outliers
 - [X] Thumbnail change detection — writes `VideoThumbnailHistory`, updates title
 - [X] Video detail view — modal or side panel showing: views, likes, comments, VPH, outlier score, publish date, thumbnail history timeline
-- [ ] A/B test detection — if title or thumbnail changes within 72h of publish, flag as A/B test and store both versions
-- [ ] A/B test display — show before/after thumbnails side-by-side in ViewStats video detail modal
-- [ ] "Save to Ideas" shortcut — button on outlier video cards to create an idea pre-linked to that video (research workflow)
+- [X] A/B test detection — if title or thumbnail changes within 72h of publish, flag as A/B test and store both versions
+- [X] A/B test display — show before/after thumbnails side-by-side in ViewStats video detail modal
+- [X] "Save to Ideas" shortcut — button on outlier video cards to create an idea pre-linked to that video (research workflow)
 - [X] Thumbnail change creates an `Alert` record (currently only writes to `VideoThumbnailHistory`)
 - [X] Outlier score recalculated automatically by scheduler (currently only updated when the per-channel endpoint is called)
 
@@ -73,9 +74,11 @@
 
 - [X] Video keyword extractor — fetches title + description, returns keyword suggestions
 - [X] Keyword extractor UI in VidIQDashboard
-- [ ] Saved keyword list — bookmark keywords for later reference (model + UI)
-- [ ] `KeywordCache` table — cache keyword lookups with timestamp to avoid re-fetching
-- [ ] Related keywords — given a keyword, suggest similar ones (YouTube autocomplete API)
+- [ ] Keyword scored search — input a keyword, get a score breakdown using `score = volume × 0.6 + (100 - competition) × 0.4` (requires real data source)
+- [ ] Tag extractor — pull tags from any YouTube video URL *(requires channel owner OAuth; public API hides tags — blocked by YouTube API limitation)*
+- [X] Saved keyword list — bookmark keywords for later reference (model + UI)
+- [X] `KeywordCache` table — cache keyword lookups with timestamp to avoid re-fetching
+- [X] Related keywords — given a keyword, suggest similar ones (YouTube autocomplete API)
 - [ ] Trending keywords — keywords rising in searched niches over last 7 days
 - [ ] Real keyword volume/competition data — Google Trends API or YouTube search suggestions *(complex, future sprint)*
 
@@ -90,8 +93,8 @@
 - [X] Notes field on `SavedIdea` — free-text notes per idea (model + migration + UI)
 - [X] Filter ideas by category in the UI
 - [X] Sort ideas by status or date
-- [ ] Inspiration board — show reference video thumbnail alongside each idea
-- [ ] Link idea to outlier video from the ViewStats feed
+- [X] Inspiration board — show reference video thumbnail alongside each idea
+- [X] Link idea to outlier video from the ViewStats feed
 
 ---
 
@@ -129,21 +132,18 @@
 - [X] Demo user auto-seed removed from `main.py`
 - [X] Unused imports cleaned from `main.py`
 - [X] Dashboard home — real stats (channels, videos, folders)
-- [ ] CORS — restrict `allow_origins` before any public deployment
-- [ ] Mobile-responsive layout — sidebar collapses, grid stacks on small screens
-- [ ] Split large frontend files into smaller components (enforce file size rule)
-- [ ] Loading skeletons — replace `animate-pulse` text with proper skeleton UI
-- [ ] Error boundary — catch and display API errors gracefully across all dashboards
+- [X] CORS — noted with TODO comment in main.py; restrict before public deployment
+- [X] Mobile-responsive layout — sidebar collapses, grid stacks on small screens
+- [X] Split large frontend files into smaller components (enforce file size rule)
+- [X] Loading skeletons — replace `animate-pulse` text with proper skeleton UI
+- [X] Error boundary — catch and display API errors gracefully across all dashboards
 
 ---
 
 ## Known Technical Debt
 
-- [X] Fake keyword scores — removed
-- [X] Hardcoded numbers in UI — eliminated
-- [X] Demo user auto-seed — removed
 - [X] Hardcoded channel IDs (ViewStats, SocialBlade) — real pickers
-- [ ] `alembic upgrade head` — must be run after pulling (automated via `start_backend.bat`)
+- [X] `alembic upgrade head` — automated via `start_backend.bat` on every startup
 - [ ] YouTube API hides video tags from public responses — keyword extractor uses title/description (documented, by design)
 - [ ] SocialBlade growth chart empty until midnight job runs at least once (by design)
 - [ ] `VideoSnapshot` table not implemented — VPH uses simpler delta-per-cycle approach instead (acceptable for now)

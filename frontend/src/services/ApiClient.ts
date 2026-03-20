@@ -45,6 +45,8 @@ export interface FolderChannel {
   view_count: number;
   video_count: number;
   grade: string | null;
+  last_upload_date: string | null;
+  avg_views_per_video: number | null;
 }
 
 // --- ViewStats Suite ---
@@ -95,6 +97,16 @@ export const VidIQClient = {
     fetchApi<any>(`/vidiq/ideas/${ideaId}/status?status=${encodeURIComponent(status)}`, { method: "PATCH" }),
   extractVideoKeywords: (videoId: string) =>
     fetchApi<{ video_id: string; title: string; keywords: string[] }>(`/vidiq/video-keywords?video_id=${encodeURIComponent(videoId)}`),
+  getRelatedKeywords: (keyword: string) =>
+    fetchApi<{ keyword: string; suggestions: string[] }>(`/vidiq/related-keywords?keyword=${encodeURIComponent(keyword)}`),
+};
+
+// --- Saved Keywords ---
+export const SavedKeywordsClient = {
+  save: (keyword: string, sourceVideoId?: string) =>
+    fetchApi<any>(`/vidiq/keywords?keyword=${encodeURIComponent(keyword)}${sourceVideoId ? `&source_video_id=${encodeURIComponent(sourceVideoId)}` : ""}`, { method: "POST" }),
+  list: () => fetchApi<any[]>("/vidiq/keywords"),
+  delete: (id: number) => fetchApi<any>(`/vidiq/keywords/${id}`, { method: "DELETE" }),
 };
 
 // --- Discovery Suite ---
@@ -122,4 +134,6 @@ export const DiscoveryClient = {
   markAllRead: () => fetchApi<any>("/velio/alerts/mark-all-read", { method: "POST" }),
   markAlertRead: (alertId: number) => fetchApi<any>(`/velio/alerts/${alertId}/read`, { method: "PATCH" }),
   resolveChannel: (q: string) => fetchApi<{ youtube_channel_id: string }>(`/velio/resolve?q=${encodeURIComponent(q)}`),
+  previewChannel: (youtubeChannelId: string) =>
+    fetchApi<any>(`/velio/preview/${youtubeChannelId}`),
 };

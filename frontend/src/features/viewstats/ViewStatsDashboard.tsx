@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { ViewStatsClient, DiscoveryClient } from "../../services/ApiClient";
+import { ViewStatsClient, DiscoveryClient, VidIQClient } from "../../services/ApiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
-import { Activity, Zap } from "lucide-react";
+import { Activity, Bookmark, Zap } from "lucide-react";
+import { toast } from "sonner";
 import { VideoDetailModal } from "./VideoDetailModal";
+import { Skeleton } from "../../components/ui/skeleton";
 
 export function ViewStatsDashboard() {
   const [trackedChannels, setTrackedChannels] = useState<any[]>([]);
@@ -84,7 +86,17 @@ export function ViewStatsDashboard() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="py-8 text-center text-slate-500 animate-pulse">Scanning channel matrix...</div>
+              <div className="space-y-3 py-2">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="flex justify-between items-center p-3 rounded bg-slate-800/30">
+                    <div className="flex-1 space-y-2 pr-4">
+                      <Skeleton className="h-3.5 w-3/4" />
+                      <Skeleton className="h-2.5 w-1/3" />
+                    </div>
+                    <Skeleton className="h-6 w-12" />
+                  </div>
+                ))}
+              </div>
             ) : outliers.length === 0 ? (
               <div className="py-8 text-center text-slate-500">No outliers detected for this channel yet.</div>
             ) : (
@@ -95,6 +107,18 @@ export function ViewStatsDashboard() {
                       <p className="text-sm font-medium text-slate-200 truncate">{item.video.title}</p>
                       <p className="text-xs text-slate-500">{new Date(item.video.published_at).toLocaleDateString()}</p>
                     </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        VidIQClient.saveIdea(item.video.title, "Outlier", undefined, item.video.id)
+                          .then(() => toast.success("Saved to Ideas library"))
+                          .catch(() => toast.error("Failed to save idea"));
+                      }}
+                      title="Save as idea"
+                      className="ml-2 p-1 rounded hover:bg-slate-700 text-slate-500 hover:text-synthwave-purple transition-colors flex-shrink-0"
+                    >
+                      <Bookmark className="w-3.5 h-3.5" />
+                    </button>
                     <div className="text-right">
                       <p className="text-lg font-bold text-synthwave-magenta drop-shadow-[0_0_8px_rgba(255,0,255,0.5)]">
                         {item.multiplier}x
@@ -128,9 +152,15 @@ export function ViewStatsDashboard() {
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableRow>
-                     <TableCell colSpan={3} className="text-center py-8 text-slate-500">Calculating velocity streams...</TableCell>
-                  </TableRow>
+                  <>
+                    {[...Array(5)].map((_, i) => (
+                      <TableRow key={i} className="border-slate-800/50">
+                        <TableCell><Skeleton className="h-3.5 w-48" /></TableCell>
+                        <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
+                        <TableCell className="text-right"><Skeleton className="h-3 w-20 ml-auto" /></TableCell>
+                      </TableRow>
+                    ))}
+                  </>
                 ) : velocity.length === 0 ? (
                   <TableRow>
                      <TableCell colSpan={3} className="text-center py-8 text-slate-500">Insufficient velocity data.</TableCell>

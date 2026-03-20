@@ -64,11 +64,15 @@ export function DiscoveryDashboard() {
   const [folders, setFolders] = useState<any[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
   const [newFolderName, setNewFolderName] = useState("");
+  const [newFolderTags, setNewFolderTags] = useState("");
   const [creatingFolder, setCreatingFolder] = useState(false);
   // Map: youtube_channel_id -> internal channel_id (after tracking)
   const [trackedMap, setTrackedMap] = useState<Record<string, number>>({});
   // Map: youtube_channel_id -> Set of folder_ids it was added to this session
   const [addedToFolders, setAddedToFolders] = useState<Record<string, Set<number>>>({});
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [previewData, setPreviewData] = useState<Record<string, any>>({});
+  const [loadingPreview, setLoadingPreview] = useState<string | null>(null);
 
   useEffect(() => {
     DiscoveryClient.getFolders().then(setFolders).catch(() => {});
@@ -142,16 +146,28 @@ export function DiscoveryDashboard() {
     if (!name) return;
     setCreatingFolder(true);
     try {
-      const folder = await DiscoveryClient.createFolder(name);
+      const tags = newFolderTags.split(",").map((t) => t.trim()).filter(Boolean);
+      const folder = await DiscoveryClient.createFolder(name, tags);
       setFolders((prev) => [...prev, folder]);
       setSelectedFolderId(folder.id);
       setNewFolderName("");
+      setNewFolderTags("");
       toast.success(`Folder "${name}" created`);
     } catch {
       // ignore
     } finally {
       setCreatingFolder(false);
     }
+  };
+
+  const handlePreview = async (ytId: string) => {
+    if (previewId === ytId) { setPreviewId(null); return; }
+    setPreviewId(ytId);
+    if (previewData[ytId]) return; // already fetched
+    setLoadingPreview(ytId);
+    const data = await DiscoveryClient.previewChannel(ytId).catch(() => null);
+    if (data) setPreviewData(prev => ({ ...prev, [ytId]: data }));
+    setLoadingPreview(null);
   };
 
   const isTracked = (ytId: string) => trackedMap[ytId] !== undefined;
@@ -183,22 +199,30 @@ export function DiscoveryDashboard() {
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Create new folder inline */}
-              <div className="flex gap-2">
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="New folder name..."
+                    value={newFolderName}
+                    onChange={(e) => setNewFolderName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()}
+                    className="bg-slate-900 border-slate-700 text-slate-200 h-9 text-sm"
+                  />
+                  <Button
+                    size="icon"
+                    onClick={handleCreateFolder}
+                    disabled={creatingFolder}
+                    className="bg-synthwave-cyan hover:bg-cyan-400 h-9 w-9 text-black"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
                 <Input
-                  placeholder="New folder name..."
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()}
-                  className="bg-slate-900 border-slate-700 text-slate-200 h-9 text-sm"
+                  placeholder="Tags (comma-separated, e.g. tech, rivals)"
+                  value={newFolderTags}
+                  onChange={(e) => setNewFolderTags(e.target.value)}
+                  className="bg-slate-900 border-slate-700 text-slate-200 h-8 text-xs"
                 />
-                <Button
-                  size="icon"
-                  onClick={handleCreateFolder}
-                  disabled={creatingFolder}
-                  className="bg-synthwave-cyan hover:bg-cyan-400 h-9 w-9 text-black"
-                >
-                  <Plus className="w-4 h-4" />
-                </Button>
               </div>
 
               {/* Folder list */}
@@ -401,7 +425,46 @@ export function DiscoveryDashboard() {
                           ID: {trackedMap[channel.youtube_channel_id]}
                         </Badge>
                       )}
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handlePreview(channel.youtube_channel_id)}
+                        className={`text-xs h-7 px-3 border-slate-600 ${previewId === channel.youtube_channel_id ? "text-synthwave-cyan border-synthwave-cyan/50" : "text-slate-400 hover:border-slate-400"}`}
+                      >
+                        {previewId === channel.youtube_channel_id ? "▲ Hide" : "Preview"}
+                      </Button>
                     </div>
+
+                    {previewId === channel.youtube_channel_id && (
+                      <div className="mt-3 pt-3 border-t border-slate-700/50">
+                        {loadingPreview === channel.youtube_channel_id ? (
+                          <div className="text-xs text-slate-500 animate-pulse">Loading preview...</div>
+                        ) : previewData[channel.youtube_channel_id] ? (() => {
+                          const p = previewData[channel.youtube_channel_id];
+                          return (
+                            <div className="flex gap-3">
+                              {p.latest_video?.thumbnail_url && (
+                                <img src={p.latest_video.thumbnail_url} alt="" className="w-24 h-14 rounded object-cover border border-slate-700 flex-shrink-0" />
+                              )}
+                              <div className="text-xs space-y-1">
+                                {p.upload_per_week != null && (
+                                  <p className="text-synthwave-cyan">{p.upload_per_week} videos/week</p>
+                                )}
+                                {p.latest_video?.title && (
+                                  <p className="text-slate-300 line-clamp-2">Latest: {p.latest_video.title}</p>
+                                )}
+                                {p.latest_video?.published_at && (
+                                  <p className="text-slate-500">{new Date(p.latest_video.published_at).toLocaleDateString()}</p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })() : (
+                          <div className="text-xs text-slate-500">No preview available.</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

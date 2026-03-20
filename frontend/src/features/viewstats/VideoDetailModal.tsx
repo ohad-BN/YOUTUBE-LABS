@@ -23,6 +23,14 @@ export function VideoDetailModal({ videoId, onClose }: Props) {
       .finally(() => setLoading(false));
   }, [videoId]);
 
+  const isABTest = (() => {
+    if (!detail?.thumbnail_history?.length || !detail?.published_at) return false;
+    const oldest = detail.thumbnail_history[detail.thumbnail_history.length - 1];
+    const publishedAt = new Date(detail.published_at).getTime();
+    const detectedAt = new Date(oldest.detected_at).getTime();
+    return (detectedAt - publishedAt) < 72 * 60 * 60 * 1000;
+  })();
+
   return (
     <Dialog open={!!videoId} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="bg-slate-900 border-slate-700 max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -33,6 +41,11 @@ export function VideoDetailModal({ videoId, onClose }: Props) {
           <>
             <DialogHeader>
               <DialogTitle className="text-white text-lg leading-snug pr-6">{detail.title}</DialogTitle>
+              {isABTest && (
+                <span className="inline-flex items-center gap-1 text-xs bg-synthwave-magenta/20 border border-synthwave-magenta/50 text-synthwave-magenta px-2 py-0.5 rounded mt-1">
+                  A/B Test Detected
+                </span>
+              )}
               <div className="flex items-center gap-2 mt-1">
                 {detail.channel_thumbnail && (
                   <img src={detail.channel_thumbnail} alt="" className="w-5 h-5 rounded-full" />

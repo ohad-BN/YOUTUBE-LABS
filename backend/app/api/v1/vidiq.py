@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -5,6 +6,9 @@ from app.db.session import get_db
 from app.models import SavedIdea
 from app.schemas.idea import SavedIdeaCreate, SavedIdeaResponse
 from typing import List, Optional
+from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -85,3 +89,84 @@ async def extract_video_keywords(video_id: str):
         "title": title,
         "keywords": sorted(list(words))[:30],
     }
+
+@router.post("/keywords")
+async def save_keyword(keyword: str, source_video_id: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+    """Bookmark a keyword for later reference."""
+    from app.models import SavedKeyword
+    db_kw = SavedKeyword(user_id=CURRENT_USER_ID, keyword=keyword, source_video_id=source_video_id)
+    db.add(db_kw)
+    await db.commit()
+    await db.refresh(db_kw)
+    return {"id": db_kw.id, "keyword": db_kw.keyword, "source_video_id": db_kw.source_video_id, "created_at": db_kw.created_at.isoformat()}
+
+@router.get("/keywords")
+async def get_saved_keywords(db: AsyncSession = Depends(get_db)):
+    """List all saved keywords for the current user."""
+    from app.models import SavedKeyword
+    result = await db.execute(
+        select(SavedKeyword)
+        .where(SavedKeyword.user_id == CURRENT_USER_ID)
+        .order_by(SavedKeyword.created_at.desc())
+    )
+    kws = result.scalars().all()
+    return [{"id": k.id, "keyword": k.keyword, "source_video_id": k.source_video_id, "created_at": k.created_at.isoformat()} for k in kws]
+
+@router.delete("/keywords/{keyword_id}")
+async def delete_saved_keyword(keyword_id: int, db: AsyncSession = Depends(get_db)):
+    """Delete a saved keyword."""
+    from app.models import SavedKeyword
+    result = await db.execute(select(SavedKeyword).where(SavedKeyword.id == keyword_id, SavedKeyword.user_id == CURRENT_USER_ID))
+    kw = result.scalar_one_or_none()
+    if not kw:
+        raise HTTPException(status_code=404, detail="Keyword not found")
+    await db.delete(kw)
+    await db.commit()
+    return {"status": "success"}
+
+@router.get("/related-keywords")
+async def get_related_keywords(keyword: str, db: AsyncSession = Depends(get_db)):
+    """
+    Return autocomplete suggestions for a keyword using YouTube's suggestion API.
+    Results are cached in KeywordCache for 24 hours to reduce external calls.
+    """
+    import httpx
+    from datetime import timedelta, timezone as tz
+    from app.models import KeywordCache
+
+    keyword_lower = keyword.strip().lower()
+
+    # Check cache (valid for 24h)
+    cached = await db.execute(
+        select(KeywordCache)
+        .where(KeywordCache.keyword == keyword_lower)
+        .order_by(KeywordCache.created_at.desc())
+        .limit(1)
+    )
+    cached_row = cached.scalar_one_or_none()
+    if cached_row:
+        age = datetime.now(tz.utc) - cached_row.created_at.replace(tzinfo=tz.utc)
+        if age < timedelta(hours=24):
+            return {"keyword": keyword, "suggestions": cached_row.suggestions or []}
+
+    # Fetch from YouTube autocomplete
+    suggestions = []
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(
+                "https://suggestqueries.google.com/complete/search",
+                params={"client": "firefox", "ds": "yt", "q": keyword_lower},
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                # Response is [query, [suggestion1, suggestion2, ...]]
+                if isinstance(data, list) and len(data) > 1 and isinstance(data[1], list):
+                    suggestions = [s for s in data[1] if isinstance(s, str) and s != keyword_lower][:15]
+    except Exception as e:
+        logger.warning(f"Autocomplete fetch failed for '{keyword}': {e}")
+
+    # Store in cache
+    db.add(KeywordCache(keyword=keyword_lower, suggestions=suggestions))
+    await db.commit()
+
+    return {"keyword": keyword, "suggestions": suggestions}

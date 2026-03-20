@@ -115,3 +115,18 @@ class Alert(Base):
     message: Mapped[str] = mapped_column(String(500))
     is_read: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+class SavedKeyword(Base):
+    __tablename__ = "saved_keywords"
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    keyword: Mapped[str] = mapped_column(String(200))
+    source_video_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # YouTube video ID it came from
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+class KeywordCache(Base):
+    __tablename__ = "keyword_cache"
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    keyword: Mapped[str] = mapped_column(String(200), index=True)
+    suggestions: Mapped[Any] = mapped_column(JSON)  # list of suggestion strings
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

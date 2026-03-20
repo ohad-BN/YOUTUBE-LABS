@@ -1,5 +1,5 @@
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import select
 from app.db.session import AsyncSessionLocal
@@ -132,8 +132,26 @@ async def refresh_video_stats():
                                 message=f'"{video.title[:60]}" thumbnail was changed.',
                             )
                             db.add(thumb_alert)
+                            # A/B test detection: change within 72h of publish
+                            age = datetime.now(timezone.utc) - (video.published_at.replace(tzinfo=timezone.utc) if video.published_at and video.published_at.tzinfo is None else video.published_at) if video.published_at else None
+                            if age is not None and age < timedelta(hours=72):
+                                ab_alert = Alert(
+                                    channel_id=video.channel_id,
+                                    type="ab_test",
+                                    message=f'A/B test detected: "{video.title[:50]}" thumbnail changed within 72h of publish.',
+                                )
+                                db.add(ab_alert)
+                                logger.info(f"Scheduler: A/B test detected for video {video.youtube_video_id}")
                             video.thumbnail_url = new_thumbnail
                         if new_title and new_title != video.title:
+                            age = datetime.now(timezone.utc) - (video.published_at.replace(tzinfo=timezone.utc) if video.published_at and video.published_at.tzinfo is None else video.published_at) if video.published_at else None
+                            if age is not None and age < timedelta(hours=72):
+                                ab_title_alert = Alert(
+                                    channel_id=video.channel_id,
+                                    type="ab_test",
+                                    message=f'A/B test detected: "{video.title[:50]}" title changed within 72h of publish.',
+                                )
+                                db.add(ab_title_alert)
                             video.title = new_title
 
             except Exception as e:

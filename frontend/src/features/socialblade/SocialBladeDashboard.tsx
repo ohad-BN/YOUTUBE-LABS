@@ -3,7 +3,7 @@ import { SocialBladeClient, DiscoveryClient } from "../../services/ApiClient";
 import { ChannelComparisonPanel } from "./ChannelComparisonPanel";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
-import { Activity, BarChart3, TrendingUp, DollarSign, Download } from "lucide-react";
+import { Activity, BarChart3, TrendingUp, DollarSign, Download, FileText } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
 
@@ -14,6 +14,10 @@ export function SocialBladeDashboard() {
   const [activeChannelId, setActiveChannelId] = useState<number | null>(null);
   const [dailyStats, setDailyStats] = useState<any[]>([]);
   const [view, setView] = useState<"projections" | "compare">("projections");
+  const [chartDays, setChartDays] = useState(30);
+
+  const REPORT_URL = (id: number) =>
+    `${import.meta.env.VITE_API_URL ?? "http://localhost:8000/api/v1"}/socialblade/channels/${id}/report`;
 
   // Load tracked channels on mount
   useEffect(() => {
@@ -38,7 +42,7 @@ export function SocialBladeDashboard() {
       setLoading(true);
       const [projData, statsData] = await Promise.all([
         SocialBladeClient.getProjections(activeChannelId).catch(() => null),
-        SocialBladeClient.getStats(activeChannelId, 30).catch(() => []),
+        SocialBladeClient.getStats(activeChannelId, chartDays).catch(() => []),
       ]);
       setProjections(projData);
       // Backend already returns oldest → newest (sorted ascending)
@@ -46,7 +50,7 @@ export function SocialBladeDashboard() {
       setLoading(false);
     }
     loadData();
-  }, [activeChannelId]);
+  }, [activeChannelId, chartDays]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -105,14 +109,24 @@ export function SocialBladeDashboard() {
         )}
       </div>
       {activeChannelId && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="border-slate-700 text-slate-300 hover:border-synthwave-cyan hover:text-synthwave-cyan"
-          onClick={() => window.open(SocialBladeClient.exportCsv(activeChannelId), "_blank")}
-        >
-          <Download className="w-3.5 h-3.5 mr-1.5" /> Export CSV
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-slate-700 text-slate-300 hover:border-synthwave-cyan hover:text-synthwave-cyan"
+            onClick={() => window.open(SocialBladeClient.exportCsv(activeChannelId), "_blank")}
+          >
+            <Download className="w-3.5 h-3.5 mr-1.5" /> Export CSV
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-slate-700 text-slate-300 hover:border-synthwave-magenta hover:text-synthwave-magenta"
+            onClick={() => window.open(REPORT_URL(activeChannelId!), "_blank")}
+          >
+            <FileText className="w-3.5 h-3.5 mr-1.5" /> PDF Report
+          </Button>
+        </div>
       )}
       </div>
 
@@ -178,8 +192,10 @@ export function SocialBladeDashboard() {
               <div className="animate-pulse text-synthwave-magenta text-center py-10">
                 Running predictive algorithms...
               </div>
-            ) : !projections || !projections.projections ? (
-              <div className="text-center py-10 text-slate-500">Projection engine requires more days of tracked data.</div>
+            ) : !projections || !projections.projections || projections.projections.length === 0 ? (
+              <div className="text-center py-10 text-slate-500">
+                Projection engine requires at least 7 days of tracked data.
+              </div>
             ) : (
               <Table>
                 <TableHeader>
@@ -241,11 +257,26 @@ export function SocialBladeDashboard() {
 
       {/* Subscriber Growth Chart — full width */}
       <Card className="glassmorphism border-t-synthwave-cyan border-t-2 bg-slate-900/50">
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-xl font-medium text-white flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-synthwave-cyan" />
-            Subscriber Growth (Last 30 Days)
+            Subscriber Growth
           </CardTitle>
+          <div className="flex gap-1 ml-auto">
+            {[30, 90].map((d) => (
+              <button
+                key={d}
+                onClick={() => setChartDays(d)}
+                className={`text-xs px-2 py-0.5 rounded border transition-colors ${
+                  chartDays === d
+                    ? "border-synthwave-cyan text-synthwave-cyan bg-synthwave-cyan/10"
+                    : "border-slate-700 text-slate-500 hover:border-slate-500"
+                }`}
+              >
+                {d}d
+              </button>
+            ))}
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (

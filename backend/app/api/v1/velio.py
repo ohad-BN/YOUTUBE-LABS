@@ -144,9 +144,9 @@ async def search_channels(q: str):
     results = await youtube_api.search_channels(q)
     return results
 
-@router.get("/folders/{folder_id}/channels", response_model=List[ChannelResponse])
+@router.get("/folders/{folder_id}/channels")
 async def get_folder_channels(folder_id: int, db: AsyncSession = Depends(get_db)):
-    """Get all tracked channels assigned to a specific folder."""
+    """Get all tracked channels in a folder, enriched with last upload date and avg views."""
     mapping_query = await db.execute(
         select(ChannelFolderMapping.channel_id).where(ChannelFolderMapping.folder_id == folder_id)
     )
@@ -156,7 +156,37 @@ async def get_folder_channels(folder_id: int, db: AsyncSession = Depends(get_db)
     channels_query = await db.execute(
         select(TrackedChannel).where(TrackedChannel.id.in_(channel_ids))
     )
-    return channels_query.scalars().all()
+    channels = channels_query.scalars().all()
+
+    from sqlalchemy import func as sqlfunc
+    results = []
+    for ch in channels:
+        last_video = await db.execute(
+            select(Video.published_at)
+            .where(Video.channel_id == ch.id)
+            .order_by(Video.published_at.desc())
+            .limit(1)
+        )
+        last_date = last_video.scalar_one_or_none()
+
+        avg_q = await db.execute(
+            select(sqlfunc.avg(Video.view_count)).where(Video.channel_id == ch.id)
+        )
+        avg_views = avg_q.scalar()
+
+        results.append({
+            "id": ch.id,
+            "youtube_channel_id": ch.youtube_channel_id,
+            "title": ch.title,
+            "thumbnail_url": ch.thumbnail_url,
+            "subscriber_count": ch.subscriber_count,
+            "view_count": ch.view_count,
+            "video_count": ch.video_count,
+            "grade": ch.grade,
+            "last_upload_date": last_date.isoformat() if last_date else None,
+            "avg_views_per_video": int(avg_views) if avg_views else None,
+        })
+    return results
 
 @router.delete("/folders/{folder_id}")
 async def delete_folder(folder_id: int, db: AsyncSession = Depends(get_db)):
@@ -187,11 +217,33 @@ async def remove_channel_from_folder(folder_id: int, channel_id: int, db: AsyncS
     await db.commit()
     return {"status": "success"}
 
-@router.get("/channels", response_model=List[ChannelResponse])
+@router.get("/channels")
 async def get_all_channels(db: AsyncSession = Depends(get_db)):
-    """List all tracked channels."""
+    """List all tracked channels with enriched stats."""
+    from sqlalchemy import func as sqlfunc
     result = await db.execute(select(TrackedChannel).order_by(TrackedChannel.subscriber_count.desc()))
-    return result.scalars().all()
+    channels = result.scalars().all()
+    enriched = []
+    for ch in channels:
+        last_video = await db.execute(
+            select(Video.published_at)
+            .where(Video.channel_id == ch.id)
+            .order_by(Video.published_at.desc())
+            .limit(1)
+        )
+        last_date = last_video.scalar_one_or_none()
+        enriched.append({
+            "id": ch.id,
+            "youtube_channel_id": ch.youtube_channel_id,
+            "title": ch.title,
+            "thumbnail_url": ch.thumbnail_url,
+            "subscriber_count": ch.subscriber_count,
+            "view_count": ch.view_count,
+            "video_count": ch.video_count,
+            "grade": ch.grade,
+            "last_upload_date": last_date.isoformat() if last_date else None,
+        })
+    return enriched
 
 @router.get("/stats")
 async def get_stats(db: AsyncSession = Depends(get_db)):
@@ -281,3 +333,50 @@ async def mark_alert_read(alert_id: int, db: AsyncSession = Depends(get_db)):
     alert.is_read = True
     await db.commit()
     return {"status": "success"}
+
+@router.get("/preview/{youtube_channel_id}")
+async def preview_channel(youtube_channel_id: str):
+    """
+    Fetch live channel data from YouTube without storing it.
+    Used to preview a channel before deciding to track it.
+    """
+    stats = await youtube_api.get_channel_stats(youtube_channel_id)
+    if not stats:
+        raise HTTPException(status_code=404, detail="Channel not found or API key missing")
+
+    snippet = stats.get("snippet", {})
+    statistics = stats.get("statistics", {})
+    video_count = int(statistics.get("videoCount", 0))
+    sub_count = int(statistics.get("subscriberCount", 0))
+
+    # Upload frequency: use channel creation date if available
+    published_at_str = snippet.get("publishedAt", "")
+    upload_per_week = None
+    if published_at_str and video_count:
+        from datetime import timezone as tz
+        created = datetime.datetime.fromisoformat(published_at_str.replace("Z", "+00:00"))
+        days_live = max((datetime.datetime.now(tz.utc) - created).days, 1)
+        upload_per_week = round(video_count / (days_live / 7), 1)
+
+    # Latest video
+    latest_video = None
+    recent = await youtube_api.get_recent_videos(youtube_channel_id, max_results=1)
+    if recent:
+        v = recent[0]
+        vs = v.get("snippet", {})
+        latest_video = {
+            "title": vs.get("title", ""),
+            "thumbnail_url": vs.get("thumbnails", {}).get("medium", {}).get("url") or vs.get("thumbnails", {}).get("default", {}).get("url"),
+            "published_at": vs.get("publishedAt"),
+        }
+
+    return {
+        "youtube_channel_id": youtube_channel_id,
+        "title": snippet.get("title", ""),
+        "thumbnail_url": snippet.get("thumbnails", {}).get("default", {}).get("url"),
+        "subscriber_count": sub_count,
+        "view_count": int(statistics.get("viewCount", 0)),
+        "video_count": video_count,
+        "upload_per_week": upload_per_week,
+        "latest_video": latest_video,
+    }

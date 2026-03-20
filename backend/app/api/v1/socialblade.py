@@ -70,6 +70,30 @@ async def get_channel_projections(channel_id: int, db: AsyncSession = Depends(ge
     avg_subs = int(avgs.avg_subs) if avgs and avgs.avg_subs else 0
     avg_views = int(avgs.avg_views) if avgs and avgs.avg_views else 0
 
+    # Compute upload frequency based on video_count and channel age
+    days_since_creation = (datetime.now(timezone.utc) - channel.created_at).days or 1
+    weeks = days_since_creation / 7
+    upload_frequency_per_week = round(channel.video_count / weeks, 1) if channel.video_count else 0.0
+
+    # Guard: require at least 7 days of history before projecting
+    row_count_q = await db.execute(
+        select(func.count()).select_from(ChannelStatsDaily)
+        .where(ChannelStatsDaily.channel_id == channel_id)
+    )
+    row_count = row_count_q.scalar() or 0
+    if row_count < 7:
+        return ProjectionsResponse(
+            channel_id=channel_id,
+            current_subs=channel.subscriber_count,
+            current_views=channel.view_count,
+            daily_avg_subs=0,
+            daily_avg_views=0,
+            estimated_monthly_revenue_low=0,
+            estimated_monthly_revenue_high=0,
+            upload_frequency_per_week=upload_frequency_per_week,
+            projections=[],
+        )
+
     # Estimate monthly revenue based on average daily views (CPM range $2-$8)
     monthly_views = avg_views * 30
     estimated_revenue_low = int(monthly_views / 1000 * 2)
@@ -77,7 +101,7 @@ async def get_channel_projections(channel_id: int, db: AsyncSession = Depends(ge
 
     # 3. Generate Projections
     projections = []
-    for days in [30, 60, 90]:
+    for days in [30, 60, 90, 180, 365]:
         proj_date = date.today() + timedelta(days=days)
         projected_subs = channel.subscriber_count + (avg_subs * days)
         projected_views = channel.view_count + (avg_views * days)
@@ -87,11 +111,6 @@ async def get_channel_projections(channel_id: int, db: AsyncSession = Depends(ge
             projected_views=projected_views,
             projected_date=proj_date
         ))
-
-    # Compute upload frequency based on video_count and channel age
-    days_since_creation = (datetime.now(timezone.utc) - channel.created_at).days or 1
-    weeks = days_since_creation / 7
-    upload_frequency_per_week = round(channel.video_count / weeks, 1) if channel.video_count else 0.0
 
     return ProjectionsResponse(
         channel_id=channel_id,
@@ -179,3 +198,98 @@ async def export_channel_csv(channel_id: int, db: AsyncSession = Depends(get_db)
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+
+@router.get("/channels/{channel_id}/report", response_class=Response)
+async def get_channel_report(channel_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Returns a printable HTML report for a channel.
+    Open in browser and use Ctrl+P → Save as PDF.
+    """
+    channel_q = await db.execute(select(TrackedChannel).where(TrackedChannel.id == channel_id))
+    channel = channel_q.scalar_one_or_none()
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+
+    # Get projections data
+    thirty_days_ago = date.today() - timedelta(days=30)
+    avg_q = await db.execute(
+        select(
+            func.avg(ChannelStatsDaily.daily_subs).label("avg_subs"),
+            func.avg(ChannelStatsDaily.daily_views).label("avg_views"),
+        )
+        .where(ChannelStatsDaily.channel_id == channel_id)
+        .where(ChannelStatsDaily.date_recorded >= thirty_days_ago)
+    )
+    avgs = avg_q.one_or_none()
+    avg_subs = int(avgs.avg_subs) if avgs and avgs.avg_subs else 0
+    avg_views = int(avgs.avg_views) if avgs and avgs.avg_views else 0
+
+    monthly_views = avg_views * 30
+    revenue_low = int(monthly_views / 1000 * 2)
+    revenue_high = int(monthly_views / 1000 * 8)
+
+    rows = ""
+    for days in [30, 60, 90, 180, 365]:
+        proj_date = date.today() + timedelta(days=days)
+        proj_subs = channel.subscriber_count + (avg_subs * days)
+        proj_views = channel.view_count + (avg_views * days)
+        rows += f"<tr><td>{days} Days</td><td>{proj_date}</td><td>{proj_subs:,}</td><td>{proj_views:,}</td></tr>"
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{channel.title} — YouTube Labs Report</title>
+  <style>
+    body {{ font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; color: #1a1a2e; }}
+    h1 {{ font-size: 1.8rem; margin-bottom: 4px; }}
+    .meta {{ color: #666; font-size: 0.9rem; margin-bottom: 24px; }}
+    .grade {{ display: inline-block; background: #4f46e5; color: white; padding: 2px 10px; border-radius: 4px; font-weight: bold; }}
+    .stats-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 24px 0; }}
+    .stat {{ border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; text-align: center; }}
+    .stat-value {{ font-size: 1.6rem; font-weight: bold; }}
+    .stat-label {{ font-size: 0.8rem; color: #666; margin-top: 4px; }}
+    table {{ width: 100%; border-collapse: collapse; margin-top: 24px; }}
+    th {{ background: #f8fafc; text-align: left; padding: 10px 12px; border-bottom: 2px solid #e2e8f0; font-size: 0.85rem; }}
+    td {{ padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 0.9rem; }}
+    .footer {{ margin-top: 40px; font-size: 0.75rem; color: #999; text-align: center; }}
+    @media print {{ body {{ margin: 20px; }} }}
+  </style>
+</head>
+<body>
+  <h1>{channel.title}</h1>
+  <div class="meta">
+    Grade: <span class="grade">{channel.grade or "N/A"}</span>
+    &nbsp;·&nbsp; Report generated: {date.today()}
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat">
+      <div class="stat-value">{channel.subscriber_count:,}</div>
+      <div class="stat-label">Subscribers</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">{channel.view_count:,}</div>
+      <div class="stat-label">Total Views</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">{channel.video_count:,}</div>
+      <div class="stat-label">Videos</div>
+    </div>
+  </div>
+
+  <p><strong>Daily avg growth:</strong> +{avg_subs:,} subs/day &nbsp;·&nbsp; +{avg_views:,} views/day</p>
+  <p><strong>Est. monthly revenue:</strong> ${revenue_low:,} – ${revenue_high:,} (CPM $2–$8)</p>
+
+  <h2 style="margin-top:32px">Growth Projections</h2>
+  <table>
+    <thead><tr><th>Timeframe</th><th>Target Date</th><th>Proj. Subscribers</th><th>Proj. Views</th></tr></thead>
+    <tbody>{rows}</tbody>
+  </table>
+
+  <div class="footer">Generated by YouTube Labs · {date.today()}</div>
+</body>
+</html>"""
+
+    return Response(content=html, media_type="text/html")

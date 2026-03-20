@@ -1,10 +1,13 @@
 import { useState, useEffect } from "react";
-import { VidIQClient } from "../../services/ApiClient";
+import { VidIQClient, ViewStatsClient, SavedKeywordsClient } from "../../services/ApiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
 import { Flame, Save, FolderOpen, Tag } from "lucide-react";
+import { SavedKeywordsPanel } from "./SavedKeywordsPanel";
+import { RelatedKeywordsPanel } from "./RelatedKeywordsPanel";
+import { toast } from "sonner";
 
 const STATUS_CYCLE: Record<string, string> = {
   backlog: "in-progress",
@@ -29,14 +32,31 @@ export function VidIQDashboard() {
   const [videoIdInput, setVideoIdInput] = useState("");
   const [keywordResult, setKeywordResult] = useState<{ video_id: string; title: string; keywords: string[] } | null>(null);
   const [loadingKeywords, setLoadingKeywords] = useState(false);
+  const [videoThumbnails, setVideoThumbnails] = useState<Record<number, string>>({});
 
   useEffect(() => {
     loadLibrary();
   }, []);
 
+  async function loadThumbnails(ideas: any[]) {
+    const idsToFetch = ideas
+      .filter((i) => i.video_reference_id && !videoThumbnails[i.video_reference_id])
+      .map((i) => i.video_reference_id as number);
+    for (const id of idsToFetch) {
+      ViewStatsClient.getVideoDetail(id)
+        .then((detail) => {
+          if (detail?.thumbnail_url) {
+            setVideoThumbnails((prev) => ({ ...prev, [id]: detail.thumbnail_url }));
+          }
+        })
+        .catch(() => {});
+    }
+  }
+
   async function loadLibrary() {
     const data = await VidIQClient.getSavedIdeas().catch(() => []);
     setLibrary(data || []);
+    loadThumbnails(data || []);
   }
 
   const handleExtractKeywords = async () => {
@@ -63,6 +83,7 @@ export function VidIQDashboard() {
       setIdeaCategory("");
       setIdeaNotes("");
       setLibrary((prev) => [idea, ...prev]);
+      loadThumbnails([idea]);
     }
   };
 
@@ -133,12 +154,15 @@ export function VidIQDashboard() {
                   {keywordResult.keywords.map((kw, i) => (
                     <Badge
                       key={i}
-                      className="bg-slate-800 text-slate-300 border border-slate-700 hover:border-synthwave-cyan transition-colors"
+                      onClick={() => SavedKeywordsClient.save(kw, videoIdInput.trim()).then(() => toast.success(`"${kw}" saved`)).catch(() => {})}
+                      className="bg-slate-800 text-slate-300 border border-slate-700 hover:border-synthwave-purple hover:text-synthwave-purple transition-colors cursor-pointer"
+                      title="Click to bookmark"
                     >
                       {kw}
                     </Badge>
                   ))}
                 </div>
+                <RelatedKeywordsPanel seedKeyword={keywordResult?.keywords?.[0] ?? null} />
               </div>
             )}
           </CardContent>
@@ -205,6 +229,13 @@ export function VidIQDashboard() {
               ) : (
                 displayedLibrary.map((idea, idx) => (
                   <div key={idx} className="p-3 bg-slate-800/40 rounded hover:bg-slate-800 transition-colors border-l-2 border-synthwave-purple flex justify-between items-start group">
+                    {idea.video_reference_id && videoThumbnails[idea.video_reference_id] && (
+                      <img
+                        src={videoThumbnails[idea.video_reference_id]}
+                        alt=""
+                        className="w-16 h-10 rounded object-cover border border-slate-700 flex-shrink-0 mr-3"
+                      />
+                    )}
                     <div className="flex-1 min-w-0 mr-2">
                       <p className="text-sm font-medium text-slate-200 group-hover:text-white">{idea.title}</p>
                       <p className="text-xs text-synthwave-purple/80">{idea.category}</p>
@@ -229,6 +260,8 @@ export function VidIQDashboard() {
         </Card>
 
       </div>
+
+      <SavedKeywordsPanel />
     </div>
   );
 }
