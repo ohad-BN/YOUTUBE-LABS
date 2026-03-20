@@ -43,6 +43,7 @@
 - [X] SocialBlade dashboard channel picker
 - [X] Export channel data as CSV
 - [ ] Growth projections — extend to 180 and 365 days
+- [ ] Growth chart day-range toggle — let user switch between 30 and 90 day view
 - [X] Upload frequency display — avg videos per week/month (compute from `video_count` + `created_at`)
 - [X] Daily gains/losses display — show +/- subs and views per day on the chart
 - [ ] Projections guard — require at least 7 days of `ChannelStatsDaily` data before showing projections
@@ -61,6 +62,8 @@
 - [X] Thumbnail change detection — writes `VideoThumbnailHistory`, updates title
 - [X] Video detail view — modal or side panel showing: views, likes, comments, VPH, outlier score, publish date, thumbnail history timeline
 - [ ] A/B test detection — if title or thumbnail changes within 72h of publish, flag as A/B test and store both versions
+- [ ] A/B test display — show before/after thumbnails side-by-side in ViewStats video detail modal
+- [ ] "Save to Ideas" shortcut — button on outlier video cards to create an idea pre-linked to that video (research workflow)
 - [X] Thumbnail change creates an `Alert` record (currently only writes to `VideoThumbnailHistory`)
 - [X] Outlier score recalculated automatically by scheduler (currently only updated when the per-channel endpoint is called)
 
@@ -100,7 +103,7 @@
 - [X] Notification bell in sidebar — badge, dropdown, auto-mark-read
 - [X] New video alert — detect when a tracked channel publishes a new video (compare video count or poll recent videos)
 - [X] Viral spike alert — when a video's VPH crosses a configurable threshold (e.g. 1000/hr)
-- [ ] Thumbnail change alert — create an `Alert` when thumbnail swap is detected (scheduler already detects it)
+- [X] Thumbnail change alert — create an `Alert` when thumbnail swap is detected (scheduler already detects it)
 - [X] Per-alert mark-as-read (`PATCH /velio/alerts/{id}/read`)
 
 ---
