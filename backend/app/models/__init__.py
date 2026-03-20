@@ -1,6 +1,6 @@
 from .base import Base
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Integer, DateTime, func, JSON, ForeignKey, Float, Date
+from sqlalchemy import String, Integer, BigInteger, DateTime, func, JSON, ForeignKey, Float, Date
 from datetime import datetime, date
 from typing import List, Optional, Any
 
@@ -33,8 +33,8 @@ class TrackedChannel(Base):
     youtube_channel_id: Mapped[str] = mapped_column(String(100), unique=True, index=True)
     title: Mapped[str] = mapped_column(String(255))
     thumbnail_url: Mapped[Optional[str]] = mapped_column(String(500))
-    subscriber_count: Mapped[int] = mapped_column(default=0)
-    view_count: Mapped[int] = mapped_column(default=0)
+    subscriber_count: Mapped[int] = mapped_column(BigInteger, default=0)
+    view_count: Mapped[int] = mapped_column(BigInteger, default=0)
     video_count: Mapped[int] = mapped_column(default=0)
     grade: Mapped[Optional[str]] = mapped_column(String(10))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -58,8 +58,8 @@ class ChannelStatsDaily(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     channel_id: Mapped[int] = mapped_column(ForeignKey("tracked_channels.id", ondelete="CASCADE"), index=True)
     date_recorded: Mapped[date] = mapped_column(Date)
-    daily_views: Mapped[int] = mapped_column(default=0)
-    daily_subs: Mapped[int] = mapped_column(default=0)
+    daily_views: Mapped[int] = mapped_column(BigInteger, default=0)
+    daily_subs: Mapped[int] = mapped_column(BigInteger, default=0)
     
     channel: Mapped["TrackedChannel"] = relationship(back_populates="daily_stats")
 
@@ -71,9 +71,9 @@ class Video(Base):
     title: Mapped[str] = mapped_column(String(500))
     thumbnail_url: Mapped[Optional[str]] = mapped_column(String(500))
     published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    view_count: Mapped[int] = mapped_column(default=0)
-    like_count: Mapped[int] = mapped_column(default=0)
-    comment_count: Mapped[int] = mapped_column(default=0)
+    view_count: Mapped[int] = mapped_column(BigInteger, default=0)
+    like_count: Mapped[int] = mapped_column(BigInteger, default=0)
+    comment_count: Mapped[int] = mapped_column(BigInteger, default=0)
     outlier_score: Mapped[Optional[float]] = mapped_column(Float)
     vph: Mapped[Optional[float]] = mapped_column(Float) # Views per hour
     
