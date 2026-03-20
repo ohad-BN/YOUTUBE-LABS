@@ -14,19 +14,26 @@ router = APIRouter()
 
 @router.get("/channels/{channel_id}/stats")
 async def get_daily_stats(channel_id: int, limit: int = 30, db: AsyncSession = Depends(get_db)):
-    """Fetch historical daily stats for a channel, enriched with per-day gain deltas."""
-    result = await db.execute(
+    """Fetch the most recent N daily stats rows, returned oldest→newest with per-day gain deltas."""
+    # Subquery: pick the most recent `limit` rows (DESC + LIMIT),
+    # then wrap in an outer query sorted ASC so the chart always reads left→right in time.
+    subq = (
         select(ChannelStatsDaily)
         .where(ChannelStatsDaily.channel_id == channel_id)
         .order_by(ChannelStatsDaily.date_recorded.desc())
         .limit(limit)
+        .subquery()
+    )
+    result = await db.execute(
+        select(ChannelStatsDaily)
+        .join(subq, ChannelStatsDaily.id == subq.c.id)
+        .order_by(ChannelStatsDaily.date_recorded.asc())
     )
     rows = result.scalars().all()
-    rows_sorted = sorted(rows, key=lambda r: r.date_recorded)
 
     enriched = []
-    for i, row in enumerate(rows_sorted):
-        prev = rows_sorted[i - 1] if i > 0 else None
+    for i, row in enumerate(rows):
+        prev = rows[i - 1] if i > 0 else None
         enriched.append({
             "date_recorded": str(row.date_recorded),
             "daily_subs": row.daily_subs,

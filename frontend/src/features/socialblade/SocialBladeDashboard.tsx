@@ -41,8 +41,8 @@ export function SocialBladeDashboard() {
         SocialBladeClient.getStats(activeChannelId, 30).catch(() => []),
       ]);
       setProjections(projData);
-      // Reverse so chart goes oldest → newest
-      setDailyStats([...(statsData as any[])].reverse());
+      // Backend already returns oldest → newest (sorted ascending)
+      setDailyStats((statsData as any[]) ?? []);
       setLoading(false);
     }
     loadData();
