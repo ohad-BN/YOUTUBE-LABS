@@ -4,6 +4,18 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Create default demo user on startup
+    from app.db.session import AsyncSessionLocal
+    from app.models import User
+    from sqlalchemy import select
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(User).where(User.id == 1))
+        if not result.scalars().first():
+            demo_user = User(id=1, email="demo@youtubelabs.local", hashed_password="demo")
+            db.add(demo_user)
+            await db.commit()
+
     from app.services.scheduler import create_scheduler
     scheduler = create_scheduler()
     scheduler.start()
@@ -20,7 +32,7 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: restrict to ["http://localhost:5173"] or your domain before any public deployment
+    allow_origins=["*"],  # TODO: restrict to ["http://localhost:7000"] or your domain before any public deployment
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

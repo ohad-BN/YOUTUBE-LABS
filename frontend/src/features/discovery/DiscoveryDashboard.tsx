@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { DiscoveryClient, ChannelSearchResult } from "../../services/ApiClient";
+import type { ChannelSearchResult } from "../../services/ApiClient";
+import { DiscoveryClient } from "../../services/ApiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -13,8 +14,7 @@ function formatCount(n: number): string {
   return n.toString();
 }
 
-function QuickTrackInput({ folders, selectedFolderId, onTracked }: {
-  folders: any[];
+function QuickTrackInput({ selectedFolderId, onTracked }: {
   selectedFolderId: number | null;
   onTracked: (name: string) => void;
 }) {
@@ -257,7 +257,7 @@ export function DiscoveryDashboard() {
               {/* Quick track by URL or handle */}
               <div className="pt-3 border-t border-slate-800 space-y-2">
                 <p className="text-xs text-slate-500">Track by URL or @handle</p>
-                <QuickTrackInput folders={folders} selectedFolderId={selectedFolderId} onTracked={(name) => toast.success(`Tracking ${name}`)} />
+                <QuickTrackInput selectedFolderId={selectedFolderId} onTracked={(name) => toast.success(`Tracking ${name}`)} />
               </div>
             </CardContent>
           </Card>

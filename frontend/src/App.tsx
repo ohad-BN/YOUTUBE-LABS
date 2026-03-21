@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Toaster } from "sonner";
-import { Tv, TrendingUp, FolderOpen, Activity, Search, Compass, Bell, Menu, X } from "lucide-react";
+import { Tv, TrendingUp, FolderOpen, Activity, Search, Compass, Bell, Menu } from "lucide-react";
 import { Button } from "./components/ui/button";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ViewStatsDashboard } from "./features/viewstats/ViewStatsDashboard";
