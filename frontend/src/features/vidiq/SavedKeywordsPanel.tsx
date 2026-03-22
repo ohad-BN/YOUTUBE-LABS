@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { SavedKeywordsClient } from "../../services/ApiClient";
+import { SavedKeywordsClient, type SavedKeyword } from "../../services/ApiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Bookmark, X } from "lucide-react";
 import { toast } from "sonner";
 
 export function SavedKeywordsPanel() {
-  const [keywords, setKeywords] = useState<any[]>([]);
+  const [keywords, setKeywords] = useState<SavedKeyword[]>([]);
 
   useEffect(() => {
     SavedKeywordsClient.list().then(setKeywords).catch(() => {});

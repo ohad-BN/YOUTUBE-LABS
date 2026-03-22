@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import type { ChannelSearchResult } from "../../services/ApiClient";
+import type { ChannelSearchResult, ChannelPreview, Folder } from "../../services/ApiClient";
 import { DiscoveryClient } from "../../services/ApiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
-import { Compass, Search, Plus, Users, Video, Check, Folder } from "lucide-react";
+import { Compass, Search, Plus, Users, Video, Check, Folder as FolderIcon } from "lucide-react";
 
 function formatCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -61,7 +61,7 @@ export function DiscoveryDashboard() {
   const [searchType, setSearchType] = useState<"name" | "topic">("name");
   const [results, setResults] = useState<ChannelSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const [folders, setFolders] = useState<any[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderTags, setNewFolderTags] = useState("");
@@ -71,7 +71,7 @@ export function DiscoveryDashboard() {
   // Map: youtube_channel_id -> Set of folder_ids it was added to this session
   const [addedToFolders, setAddedToFolders] = useState<Record<string, Set<number>>>({});
   const [previewId, setPreviewId] = useState<string | null>(null);
-  const [previewData, setPreviewData] = useState<Record<string, any>>({});
+  const [previewData, setPreviewData] = useState<Record<string, ChannelPreview>>({});
   const [loadingPreview, setLoadingPreview] = useState<string | null>(null);
 
   useEffect(() => {
@@ -241,7 +241,7 @@ export function DiscoveryDashboard() {
                           : "text-slate-400 hover:text-slate-200"
                       }`}
                     >
-                      <Folder className="w-3.5 h-3.5" />
+                      <FolderIcon className="w-3.5 h-3.5" />
                       {folder.name}
                     </Button>
                   ))
@@ -412,7 +412,7 @@ export function DiscoveryDashboard() {
                           </>
                         ) : selectedFolderId ? (
                           <>
-                            <Folder className="w-3 h-3 mr-1" />
+                            <FolderIcon className="w-3 h-3 mr-1" />
                             Add to {folders.find((f) => f.id === selectedFolderId)?.name}
                           </>
                         ) : (

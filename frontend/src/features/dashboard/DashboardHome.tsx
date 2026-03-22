@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
+import type { VelocityData, VideoOutlier } from "../../services/ApiClient";
 import { DiscoveryClient, ViewStatsClient } from "../../services/ApiClient";
 
 interface Props {
@@ -8,8 +9,8 @@ interface Props {
 
 export function DashboardHome({ onNavigate }: Props) {
   const [stats, setStats] = useState<{ total_channels: number; total_videos: number; total_folders: number } | null>(null);
-  const [globalVph, setGlobalVph] = useState<any[]>([]);
-  const [globalOutliers, setGlobalOutliers] = useState<any[]>([]);
+  const [globalVph, setGlobalVph] = useState<VelocityData[]>([]);
+  const [globalOutliers, setGlobalOutliers] = useState<VideoOutlier[]>([]);
 
   useEffect(() => {
     DiscoveryClient.getStats().then(setStats).catch(() => {});
@@ -70,7 +71,7 @@ export function DashboardHome({ onNavigate }: Props) {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {globalVph.map((vid: any, i: number) => (
+                {globalVph.map((vid: VelocityData, i: number) => (
                   <div key={i} className="flex items-center justify-between gap-4 py-2 border-b border-slate-800/60 last:border-0">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-slate-200 truncate">{vid.title}</p>
@@ -97,7 +98,7 @@ export function DashboardHome({ onNavigate }: Props) {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {globalOutliers.map((item: any, i: number) => (
+                {globalOutliers.map((item: VideoOutlier, i: number) => (
                   <div key={i} className="flex items-center gap-3 py-2 border-b border-slate-800/60 last:border-0">
                     {item.thumbnail_url && (
                       <img src={item.thumbnail_url} alt={item.title} className="w-16 h-10 object-cover rounded flex-shrink-0" />

@@ -3,7 +3,25 @@ import { toast } from "sonner";
 import { ExternalLink, Eye, ThumbsUp, MessageSquare, Zap, TrendingUp } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../components/ui/dialog";
 import { Badge } from "../../components/ui/badge";
-import { ViewStatsClient } from "../../services/ApiClient";
+import { ViewStatsClient, type VideoDetail } from "../../services/ApiClient";
+
+interface ThumbnailHistory {
+  thumbnail_url: string;
+  title?: string;
+  detected_at?: string;
+}
+
+interface ExtendedVideoDetail extends VideoDetail {
+  thumbnail_url?: string;
+  channel_thumbnail?: string;
+  channel_title?: string;
+  youtube_video_id?: string;
+  like_count?: number;
+  comment_count?: number;
+  vph?: number;
+  outlier_score?: number;
+  thumbnail_history?: ThumbnailHistory[];
+}
 
 interface Props {
   videoId: number | null;
@@ -11,23 +29,36 @@ interface Props {
 }
 
 export function VideoDetailModal({ videoId, onClose }: Props) {
-  const [detail, setDetail] = useState<any>(null);
+  const [detail, setDetail] = useState<ExtendedVideoDetail | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!videoId) { setDetail(null); return; }
-    setLoading(true);
-    ViewStatsClient.getVideoDetail(videoId)
-      .then(setDetail)
-      .catch((err) => toast.error(err.message || "Failed to load video details"))
-      .finally(() => setLoading(false));
+    if (!videoId) return;
+
+    let mounted = true;
+    const load = async () => {
+      if (mounted) setLoading(true);
+      try {
+        const data = await ViewStatsClient.getVideoDetail(videoId);
+        if (mounted) setDetail(data);
+      } catch (err) {
+        if (mounted) {
+          toast.error(err instanceof Error ? err.message : "Failed to load video details");
+        }
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    load();
+    return () => { mounted = false; };
   }, [videoId]);
 
   const isABTest = (() => {
     if (!detail?.thumbnail_history?.length || !detail?.published_at) return false;
     const oldest = detail.thumbnail_history[detail.thumbnail_history.length - 1];
     const publishedAt = new Date(detail.published_at).getTime();
-    const detectedAt = new Date(oldest.detected_at).getTime();
+    const detectedAt = oldest.detected_at ? new Date(oldest.detected_at).getTime() : publishedAt;
     return (detectedAt - publishedAt) < 72 * 60 * 60 * 1000;
   })();
 
@@ -97,7 +128,7 @@ export function VideoDetailModal({ videoId, onClose }: Props) {
             </a>
 
             {/* Thumbnail history */}
-            {detail.thumbnail_history?.length > 0 && (
+            {detail.thumbnail_history && detail.thumbnail_history.length > 0 && (
               <div className="mt-2">
                 <h3 className="text-sm font-semibold text-slate-300 mb-3">
                   Thumbnail History
@@ -106,12 +137,12 @@ export function VideoDetailModal({ videoId, onClose }: Props) {
                   </Badge>
                 </h3>
                 <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
-                  {detail.thumbnail_history.map((h: any, i: number) => (
+                  {detail.thumbnail_history.map((h: ThumbnailHistory, i: number) => (
                     <div key={i} className="flex gap-3 items-start bg-slate-800/40 rounded-lg p-2 border border-slate-700/50">
                       <img src={h.thumbnail_url} alt="" className="w-24 rounded border border-slate-600 object-cover shrink-0" />
                       <div className="min-w-0">
                         <p className="text-xs text-slate-300 line-clamp-2">{h.title}</p>
-                        <p className="text-xs text-slate-500 mt-1">{new Date(h.detected_at).toLocaleString()}</p>
+                        <p className="text-xs text-slate-500 mt-1">{h.detected_at ? new Date(h.detected_at).toLocaleString() : "—"}</p>
                       </div>
                     </div>
                   ))}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { FolderChannel, ProjectionData, ChannelStats } from "../../services/ApiClient";
 import { SocialBladeClient, DiscoveryClient } from "../../services/ApiClient";
 import { ChannelComparisonPanel } from "./ChannelComparisonPanel";
 import {
@@ -35,16 +36,16 @@ import {
 } from "recharts";
 
 export function SocialBladeDashboard() {
-  const [projections, setProjections] = useState<any>(null);
+  const [projections, setProjections] = useState<ProjectionData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [trackedChannels, setTrackedChannels] = useState<any[]>([]);
+  const [trackedChannels, setTrackedChannels] = useState<FolderChannel[]>([]);
   const [activeChannelId, setActiveChannelId] = useState<number | null>(null);
-  const [dailyStats, setDailyStats] = useState<any[]>([]);
+  const [dailyStats, setDailyStats] = useState<ChannelStats[]>([]);
   const [view, setView] = useState<"projections" | "compare">("projections");
   const [chartDays, setChartDays] = useState(30);
 
   const REPORT_URL = (id: number) =>
-    `${import.meta.env.VITE_API_URL ?? "http://localhost:7100/api/v1"}/socialblade/channels/${id}/report`;
+    `${import.meta.env.VITE_API_URL ?? "/api/v1"}/socialblade/channels/${id}/report`;
 
   // Load tracked channels on mount
   useEffect(() => {
@@ -58,24 +59,19 @@ export function SocialBladeDashboard() {
 
   // Load projections and daily stats whenever activeChannelId changes
   useEffect(() => {
-    if (!activeChannelId) {
-      setProjections(null);
-      setDailyStats([]);
-      setLoading(false);
-      return;
-    }
+    if (!activeChannelId) return;
 
     async function loadData() {
       setLoading(true);
       const [projData, statsData] = await Promise.all([
-        SocialBladeClient.getProjections(activeChannelId!!).catch(() => null),
-        SocialBladeClient.getStats(activeChannelId!!, chartDays).catch(
+        SocialBladeClient.getProjections(activeChannelId!).catch(() => null),
+        SocialBladeClient.getStats(activeChannelId!, chartDays).catch(
           () => [],
         ),
       ]);
       setProjections(projData);
       // Backend already returns oldest → newest (sorted ascending)
-      setDailyStats((statsData as any[]) ?? []);
+      setDailyStats((statsData as ChannelStats[]) ?? []);
       setLoading(false);
     }
     loadData();
@@ -260,7 +256,7 @@ export function SocialBladeDashboard() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {projections.projections.map((proj: any, idx: number) => (
+                      {projections.projections.map((proj: { days_forward: number; projected_date: string; projected_subs: number; projected_views: number }, idx: number) => (
                         <TableRow
                           key={idx}
                           className="border-slate-800/50 hover:bg-slate-800/30 transition-colors"

@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { VidIQClient, ViewStatsClient, SavedKeywordsClient } from "../../services/ApiClient";
+import { useState, useEffect, useCallback } from "react";
+import { VidIQClient, ViewStatsClient, SavedKeywordsClient, type IdeaData } from "../../services/ApiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -26,7 +26,7 @@ export function VidIQDashboard() {
   const [ideaTitle, setIdeaTitle] = useState("");
   const [ideaCategory, setIdeaCategory] = useState("");
   const [ideaNotes, setIdeaNotes] = useState("");
-  const [library, setLibrary] = useState<any[]>([]);
+  const [library, setLibrary] = useState<IdeaData[]>([]);
   const [filterCategory, setFilterCategory] = useState("");
   const [sortBy, setSortBy] = useState<"date" | "status">("date");
   const [videoIdInput, setVideoIdInput] = useState("");
@@ -34,11 +34,7 @@ export function VidIQDashboard() {
   const [loadingKeywords, setLoadingKeywords] = useState(false);
   const [videoThumbnails, setVideoThumbnails] = useState<Record<number, string>>({});
 
-  useEffect(() => {
-    loadLibrary();
-  }, []);
-
-  async function loadThumbnails(ideas: any[]) {
+  const loadThumbnails = useCallback(async (ideas: IdeaData[]) => {
     const idsToFetch = ideas
       .filter((i) => i.video_reference_id && !videoThumbnails[i.video_reference_id])
       .map((i) => i.video_reference_id as number);
@@ -46,18 +42,25 @@ export function VidIQDashboard() {
       ViewStatsClient.getVideoDetail(id)
         .then((detail) => {
           if (detail?.thumbnail_url) {
-            setVideoThumbnails((prev) => ({ ...prev, [id]: detail.thumbnail_url }));
+            setVideoThumbnails((prev) => ({ ...prev, [id]: detail.thumbnail_url! }));
           }
         })
         .catch(() => {});
     }
-  }
+  }, [videoThumbnails]);
 
-  async function loadLibrary() {
-    const data = await VidIQClient.getSavedIdeas().catch(() => []);
-    setLibrary(data || []);
-    loadThumbnails(data || []);
-  }
+  useEffect(() => {
+    let mounted = true;
+    const init = async () => {
+      const data = await VidIQClient.getSavedIdeas().catch(() => []);
+      if (mounted) {
+        setLibrary(data || []);
+        await loadThumbnails(data || []);
+      }
+    };
+    init();
+    return () => { mounted = false; };
+  }, [loadThumbnails]);
 
   const handleExtractKeywords = async () => {
     const vid = videoIdInput.trim();
@@ -69,7 +72,7 @@ export function VidIQDashboard() {
     setLoadingKeywords(false);
   };
 
-  const handleStatusClick = async (idea: any) => {
+  const handleStatusClick = async (idea: IdeaData) => {
     const next = STATUS_CYCLE[idea.status ?? "backlog"] ?? "backlog";
     await VidIQClient.updateIdeaStatus(idea.id, next).catch(() => {});
     setLibrary((prev) => prev.map((i) => i.id === idea.id ? { ...i, status: next } : i));

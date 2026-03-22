@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { FolderChannel, ChannelComparison } from "../../services/ApiClient";
 import { SocialBladeClient } from "../../services/ApiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
@@ -7,7 +8,7 @@ import { Badge } from "../../components/ui/badge";
 import { GitCompareArrows } from "lucide-react";
 
 interface Props {
-  trackedChannels: any[];
+  trackedChannels: FolderChannel[];
 }
 
 const METRICS = [
@@ -20,7 +21,7 @@ const METRICS = [
 
 export function ChannelComparisonPanel({ trackedChannels }: Props) {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [comparisonData, setComparisonData] = useState<any[] | null>(null);
+  const [comparisonData, setComparisonData] = useState<ChannelComparison[] | null>(null);
   const [loading, setLoading] = useState(false);
 
   function toggleChannel(id: number) {
@@ -43,7 +44,7 @@ export function ChannelComparisonPanel({ trackedChannels }: Props) {
     }
   }
 
-  function formatValue(key: string, val: any) {
+  function formatValue(key: string, val: number | string | null | undefined) {
     if (val == null) return <span className="text-slate-600">—</span>;
     if (key === "grade") return <Badge className="bg-synthwave-purple/20 text-synthwave-purple border-synthwave-purple/40">{val}</Badge>;
     if (typeof val === "number") return val.toLocaleString();
@@ -114,7 +115,7 @@ export function ChannelComparisonPanel({ trackedChannels }: Props) {
                   <TableCell className="text-slate-400 text-sm font-medium">{metric.label}</TableCell>
                   {comparisonData.map((ch) => (
                     <TableCell key={ch.channel_id} className="text-center font-mono text-slate-200">
-                      {formatValue(metric.key, ch[metric.key])}
+                      {formatValue(metric.key, ch[metric.key as keyof ChannelComparison])}
                     </TableCell>
                   ))}
                 </TableRow>

@@ -9,12 +9,12 @@ import { SocialBladeDashboard } from "./features/socialblade/SocialBladeDashboar
 import { VidIQDashboard } from "./features/vidiq/VidIQDashboard";
 import { DiscoveryDashboard } from "./features/discovery/DiscoveryDashboard";
 import { DashboardHome } from "./features/dashboard/DashboardHome";
-import { DiscoveryClient } from "./services/ApiClient";
+import { DiscoveryClient, type DiscoveryAlert } from "./services/ApiClient";
 
 function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [unreadAlerts, setUnreadAlerts] = useState(0);
-  const [alerts, setAlerts] = useState<any[]>([]);
+  const [alerts, setAlerts] = useState<DiscoveryAlert[]>([]);
   const [showAlerts, setShowAlerts] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -136,9 +136,9 @@ function App() {
                 {alerts.length === 0 ? (
                   <p className="text-slate-500 text-sm text-center py-6">No alerts yet</p>
                 ) : (
-                  alerts.slice(0, 10).map((alert: any) => (
-                    <div key={alert.id} className={`px-4 py-3 border-b border-slate-800/50 text-sm ${alert.is_read ? 'text-slate-500' : 'text-slate-200'}`}>
-                      <p>{alert.message}</p>
+                  alerts.slice(0, 10).map((alert: DiscoveryAlert) => (
+                    <div key={alert.id} className={`px-4 py-3 border-b border-slate-800/50 text-sm ${alert.read ? 'text-slate-500' : 'text-slate-200'}`}>
+                      <p>{alert.title}</p>
                       <p className="text-xs text-slate-600 mt-0.5">{new Date(alert.created_at).toLocaleDateString()}</p>
                     </div>
                   ))

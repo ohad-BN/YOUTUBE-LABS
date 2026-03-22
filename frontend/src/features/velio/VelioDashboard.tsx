@@ -4,6 +4,8 @@ import {
   VelioClient,
   DiscoveryClient,
   type FolderChannel,
+  type FolderVideo,
+  type Folder,
 } from "../../services/ApiClient";
 import {
   Card,
@@ -13,7 +15,7 @@ import {
 } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
-import { Folder, Play, Plus, Trash2, Users } from "lucide-react";
+import { Folder as FolderIcon, Play, Plus, Trash2, Users } from "lucide-react";
 import { Skeleton } from "../../components/ui/skeleton";
 
 function formatCount(n: number): string {
@@ -23,9 +25,9 @@ function formatCount(n: number): string {
 }
 
 export function VelioDashboard() {
-  const [folders, setFolders] = useState<any[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [activeFolder, setActiveFolder] = useState<number | null>(null);
-  const [folderVideos, setFolderVideos] = useState<any[]>([]);
+  const [folderVideos, setFolderVideos] = useState<FolderVideo[]>([]);
   const [loading, setLoading] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderTags, setNewFolderTags] = useState("");
@@ -94,7 +96,7 @@ export function VelioDashboard() {
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex items-center gap-3 mb-6">
-        <Folder className="w-8 h-8 text-synthwave-magenta drop-shadow-[0_0_10px_rgba(255,0,255,0.8)]" />
+        <FolderIcon className="w-8 h-8 text-synthwave-magenta drop-shadow-[0_0_10px_rgba(255,0,255,0.8)]" />
         <h2 className="text-3xl font-light tracking-tight text-white">
           Velio Channel Folders
         </h2>
@@ -151,7 +153,7 @@ export function VelioDashboard() {
                         onClick={() => setActiveFolder(folder.id)}
                       >
                         <div className="flex items-center gap-2 w-full">
-                          <Folder className="w-4 h-4 flex-shrink-0" />
+                          <FolderIcon className="w-4 h-4 flex-shrink-0" />
                           <span className="truncate">{folder.name}</span>
                         </div>
                         {folder.tags && folder.tags.length > 0 && (
@@ -407,7 +409,7 @@ export function VelioDashboard() {
                               </span>
                               <span>
                                 {new Date(
-                                  video.published_at,
+                                  video.published_at || '',
                                 ).toLocaleDateString()}
                               </span>
                             </div>
