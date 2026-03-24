@@ -1,27 +1,28 @@
 import { useState, useEffect } from "react";
 import { Toaster } from "sonner";
-import { Tv, TrendingUp, FolderOpen, Activity, Search, Compass, Bell, Menu, X } from "lucide-react";
+import { Tv, TrendingUp, FolderOpen, Activity, Search, Compass, Bell, Menu, Settings } from "lucide-react";
 import { Button } from "./components/ui/button";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { ViewStatsDashboard } from "./features/viewstats/ViewStatsDashboard";
-import { VelioDashboard } from "./features/velio/VelioDashboard";
-import { SocialBladeDashboard } from "./features/socialblade/SocialBladeDashboard";
-import { VidIQDashboard } from "./features/vidiq/VidIQDashboard";
-import { DiscoveryDashboard } from "./features/discovery/DiscoveryDashboard";
-import { DashboardHome } from "./features/dashboard/DashboardHome";
-import { DiscoveryClient } from "./services/ApiClient";
+import { Home } from "./features/home/Home";
+import { ResearchNewV2 as Research } from "./features/research/ResearchNewV2";
+import { DeepDive } from "./features/deepdive/DeepDive";
+import { Trends } from "./features/trends/Trends";
+import { Keywords } from "./features/keywords/Keywords";
+import { Vault } from "./features/vault/Vault";
+import { Workspace } from "./features/workspace/Workspace";
+import { ResearchClient, type Alert } from "./services/ApiClient";
 
 function App() {
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState("home");
   const [unreadAlerts, setUnreadAlerts] = useState(0);
-  const [alerts, setAlerts] = useState<any[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
   const [showAlerts, setShowAlerts] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     const loadAlerts = () => {
-      DiscoveryClient.getUnreadCount().then(d => setUnreadAlerts(d.unread)).catch(() => {});
-      DiscoveryClient.getAlerts().then(setAlerts).catch(() => {});
+      ResearchClient.getUnreadCount().then(d => setUnreadAlerts(d.unread)).catch(() => {});
+      ResearchClient.getAlerts().then(setAlerts).catch(() => {});
     };
     loadAlerts();
     const interval = setInterval(loadAlerts, 60_000);
@@ -52,55 +53,63 @@ function App() {
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
         md:translate-x-0 md:flex-shrink-0
       `}>
-        <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate("dashboard")}>
+        <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate("home")}>
           <div className="w-8 h-8 rounded bg-synthwave-magenta flex items-center justify-center synth-glow-magenta shadow-lg">
             <Tv className="w-5 h-5 text-white" />
           </div>
           <h1 className="font-bold text-xl tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-synthwave-cyan to-synthwave-magenta">
-            YOUTUBE LABS
+            CREATOR LABS
           </h1>
         </div>
 
         <nav className="flex flex-col gap-2 flex-1">
           <Button
             variant="ghost"
-            onClick={() => navigate("discovery")}
-            className={`justify-start gap-3 hover:bg-slate-800/50 ${activeTab === 'discovery' ? 'text-synthwave-cyan bg-slate-800/30' : 'hover:text-synthwave-cyan'}`}
+            onClick={() => navigate("research")}
+            className={`justify-start gap-3 hover:bg-slate-800/50 ${activeTab === 'research' ? 'text-synthwave-cyan bg-slate-800/30' : 'hover:text-synthwave-cyan'}`}
           >
             <Compass className="w-4 h-4" />
-            Discover Channels
+            Research
           </Button>
           <Button
             variant="ghost"
-            onClick={() => navigate("viewstats")}
-            className={`justify-start gap-3 hover:bg-slate-800/50 ${activeTab === 'viewstats' ? 'text-synthwave-cyan bg-slate-800/30' : 'hover:text-synthwave-cyan'}`}
-          >
-            <TrendingUp className="w-4 h-4" />
-            ViewStats
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => navigate("velio")}
-            className={`justify-start gap-3 hover:bg-slate-800/50 ${activeTab === 'velio' ? 'text-synthwave-magenta bg-slate-800/30' : 'hover:text-synthwave-magenta'}`}
-          >
-            <Search className="w-4 h-4" />
-            Velio Discovery
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => navigate("socialblade")}
-            className={`justify-start gap-3 hover:bg-slate-800/50 ${activeTab === 'socialblade' ? 'text-synthwave-cyan bg-slate-800/30' : 'hover:text-synthwave-cyan'}`}
+            onClick={() => navigate("deepdive")}
+            className={`justify-start gap-3 hover:bg-slate-800/50 ${activeTab === 'deepdive' ? 'text-synthwave-cyan bg-slate-800/30' : 'hover:text-synthwave-cyan'}`}
           >
             <Activity className="w-4 h-4" />
-            SocialBlade
+            Deep Dive
           </Button>
           <Button
             variant="ghost"
-            onClick={() => navigate("vidiq")}
-            className={`justify-start gap-3 hover:bg-slate-800/50 ${activeTab === 'vidiq' ? 'text-synthwave-purple bg-slate-800/30' : 'hover:text-synthwave-purple'}`}
+            onClick={() => navigate("trends")}
+            className={`justify-start gap-3 hover:bg-slate-800/50 ${activeTab === 'trends' ? 'text-synthwave-cyan bg-slate-800/30' : 'hover:text-synthwave-cyan'}`}
+          >
+            <TrendingUp className="w-4 h-4" />
+            Trends
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => navigate("keywords")}
+            className={`justify-start gap-3 hover:bg-slate-800/50 ${activeTab === 'keywords' ? 'text-synthwave-purple bg-slate-800/30' : 'hover:text-synthwave-purple'}`}
+          >
+            <Search className="w-4 h-4" />
+            Keywords
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => navigate("vault")}
+            className={`justify-start gap-3 hover:bg-slate-800/50 ${activeTab === 'vault' ? 'text-synthwave-purple bg-slate-800/30' : 'hover:text-synthwave-purple'}`}
           >
             <FolderOpen className="w-4 h-4" />
-            Channel Folders
+            Vault
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => navigate("workspace")}
+            className={`justify-start gap-3 hover:bg-slate-800/50 ${activeTab === 'workspace' ? 'text-synthwave-cyan bg-slate-800/30' : 'hover:text-synthwave-cyan'}`}
+          >
+            <Settings className="w-4 h-4" />
+            Workspace
           </Button>
         </nav>
 
@@ -110,7 +119,7 @@ function App() {
             onClick={async () => {
               setShowAlerts(!showAlerts);
               if (!showAlerts && unreadAlerts > 0) {
-                await DiscoveryClient.markAllRead().catch(() => {});
+                await ResearchClient.markAllRead().catch(() => {});
                 setUnreadAlerts(0);
                 setAlerts(prev => prev.map(a => ({ ...a, is_read: true })));
               }
@@ -136,9 +145,9 @@ function App() {
                 {alerts.length === 0 ? (
                   <p className="text-slate-500 text-sm text-center py-6">No alerts yet</p>
                 ) : (
-                  alerts.slice(0, 10).map((alert: any) => (
-                    <div key={alert.id} className={`px-4 py-3 border-b border-slate-800/50 text-sm ${alert.is_read ? 'text-slate-500' : 'text-slate-200'}`}>
-                      <p>{alert.message}</p>
+                  alerts.slice(0, 10).map((alert: Alert) => (
+                    <div key={alert.id} className={`px-4 py-3 border-b border-slate-800/50 text-sm ${alert.read ? 'text-slate-500' : 'text-slate-200'}`}>
+                      <p>{alert.title}</p>
                       <p className="text-xs text-slate-600 mt-0.5">{new Date(alert.created_at).toLocaleDateString()}</p>
                     </div>
                   ))
@@ -173,12 +182,13 @@ function App() {
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-synthwave-purple/10 rounded-full blur-[120px] z-0 mix-blend-screen pointer-events-none" />
 
         <div className="relative z-10">
-          {activeTab === "discovery" && <ErrorBoundary label="Discovery"><DiscoveryDashboard /></ErrorBoundary>}
-          {activeTab === "dashboard" && <ErrorBoundary label="Dashboard"><DashboardHome onNavigate={setActiveTab} /></ErrorBoundary>}
-          {activeTab === "viewstats" && <ErrorBoundary label="ViewStats"><ViewStatsDashboard /></ErrorBoundary>}
-          {activeTab === "velio" && <ErrorBoundary label="Velio"><VelioDashboard /></ErrorBoundary>}
-          {activeTab === "socialblade" && <ErrorBoundary label="SocialBlade"><SocialBladeDashboard /></ErrorBoundary>}
-          {activeTab === "vidiq" && <ErrorBoundary label="VidIQ"><VidIQDashboard /></ErrorBoundary>}
+          {activeTab === "home" && <ErrorBoundary label="Home"><Home onNavigate={setActiveTab} /></ErrorBoundary>}
+          {activeTab === "research" && <ErrorBoundary label="Research"><Research /></ErrorBoundary>}
+          {activeTab === "deepdive" && <ErrorBoundary label="Deep Dive"><DeepDive /></ErrorBoundary>}
+          {activeTab === "trends" && <ErrorBoundary label="Trends"><Trends /></ErrorBoundary>}
+          {activeTab === "keywords" && <ErrorBoundary label="Keywords"><Keywords /></ErrorBoundary>}
+          {activeTab === "vault" && <ErrorBoundary label="Vault"><Vault /></ErrorBoundary>}
+          {activeTab === "workspace" && <ErrorBoundary label="Workspace"><Workspace /></ErrorBoundary>}
         </div>
       </main>
 

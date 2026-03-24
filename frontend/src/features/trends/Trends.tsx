@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { ViewStatsClient, DiscoveryClient, VidIQClient } from "../../services/ApiClient";
+import type { FolderChannel, VideoOutlier, VelocityData } from "../../services/ApiClient";
+import { TrendsClient, ResearchClient, IdeasClient } from "../../services/ApiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
 import { Activity, Bookmark, Zap } from "lucide-react";
@@ -7,16 +8,16 @@ import { toast } from "sonner";
 import { VideoDetailModal } from "./VideoDetailModal";
 import { Skeleton } from "../../components/ui/skeleton";
 
-export function ViewStatsDashboard() {
-  const [trackedChannels, setTrackedChannels] = useState<any[]>([]);
+export function Trends() {
+  const [trackedChannels, setTrackedChannels] = useState<FolderChannel[]>([]);
   const [activeChannelId, setActiveChannelId] = useState<number | null>(null);
-  const [outliers, setOutliers] = useState<any[]>([]);
-  const [velocity, setVelocity] = useState<any[]>([]);
+  const [outliers, setOutliers] = useState<VideoOutlier[]>([]);
+  const [velocity, setVelocity] = useState<VelocityData[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedVideoId, setSelectedVideoId] = useState<number | null>(null);
 
   useEffect(() => {
-    DiscoveryClient.getTrackedChannels()
+    ResearchClient.getTrackedChannels()
       .then((data) => {
         setTrackedChannels(data || []);
         if (data && data.length > 0) setActiveChannelId(data[0].id);
@@ -29,8 +30,8 @@ export function ViewStatsDashboard() {
     async function fetchData() {
       try {
         setLoading(true);
-        const outlierData = await ViewStatsClient.getOutliers(activeChannelId!).catch(() => []);
-        const velocityData = await ViewStatsClient.getTopVelocity(5).catch(() => []);
+        const outlierData = await TrendsClient.getOutliers(activeChannelId!).catch(() => []);
+        const velocityData = await TrendsClient.getTopVelocity(5).catch(() => []);
         setOutliers(outlierData || []);
         setVelocity(velocityData || []);
       } finally {
@@ -45,12 +46,12 @@ export function ViewStatsDashboard() {
       
       <div className="flex items-center gap-3 mb-6">
         <Zap className="w-8 h-8 text-synthwave-cyan drop-shadow-[0_0_10px_rgba(0,255,255,0.8)]" />
-        <h2 className="text-3xl font-light tracking-tight text-white">ViewStats Engine</h2>
+        <h2 className="text-3xl font-light tracking-tight text-white">Trend Radar</h2>
       </div>
 
       {trackedChannels.length === 0 ? (
         <div className="py-20 text-center text-slate-500">
-          No channels tracked yet. Use <span className="text-synthwave-cyan">Discover Channels</span> to add some.
+          No channels tracked yet. Use <span className="text-synthwave-cyan">Research</span> to add some.
         </div>
       ) : (
         <div className="flex flex-wrap gap-2 mb-6">
@@ -102,15 +103,15 @@ export function ViewStatsDashboard() {
             ) : (
               <div className="space-y-4">
                 {outliers.map((item, idx) => (
-                  <div key={idx} onClick={() => setSelectedVideoId(item.video.id)} className="flex justify-between items-center p-3 rounded bg-slate-800/50 hover:bg-slate-800 transition-colors border-l-2 border-transparent hover:border-synthwave-magenta cursor-pointer">
+                  <div key={idx} onClick={() => setSelectedVideoId(item.video!.id)} className="flex justify-between items-center p-3 rounded bg-slate-800/50 hover:bg-slate-800 transition-colors border-l-2 border-transparent hover:border-synthwave-magenta cursor-pointer">
                     <div className="truncate pr-4 flex-1">
-                      <p className="text-sm font-medium text-slate-200 truncate">{item.video.title}</p>
-                      <p className="text-xs text-slate-500">{new Date(item.video.published_at).toLocaleDateString()}</p>
+                      <p className="text-sm font-medium text-slate-200 truncate">{item.video!.title}</p>
+                      <p className="text-xs text-slate-500">{new Date(item.video!.published_at).toLocaleDateString()}</p>
                     </div>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        VidIQClient.saveIdea(item.video.title, "Outlier", undefined, item.video.id)
+                        IdeasClient.saveIdea(item.video!.title, "Outlier", undefined, item.video!.id)
                           .then(() => toast.success("Saved to Ideas library"))
                           .catch(() => toast.error("Failed to save idea"));
                       }}
@@ -123,7 +124,7 @@ export function ViewStatsDashboard() {
                       <p className="text-lg font-bold text-synthwave-magenta drop-shadow-[0_0_8px_rgba(255,0,255,0.5)]">
                         {item.multiplier}x
                       </p>
-                      <p className="text-xs text-slate-400">{item.video.view_count.toLocaleString()} views</p>
+                      <p className="text-xs text-slate-400">{item.video!.view_count.toLocaleString()} views</p>
                     </div>
                   </div>
                 ))}

@@ -1,26 +1,27 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
-import { DiscoveryClient, ViewStatsClient } from "../../services/ApiClient";
+import type { VelocityData, VideoOutlier } from "../../services/ApiClient";
+import { ResearchClient, TrendsClient } from "../../services/ApiClient";
 
 interface Props {
   onNavigate: (tab: string) => void;
 }
 
-export function DashboardHome({ onNavigate }: Props) {
+export function Home({ onNavigate }: Props) {
   const [stats, setStats] = useState<{ total_channels: number; total_videos: number; total_folders: number } | null>(null);
-  const [globalVph, setGlobalVph] = useState<any[]>([]);
-  const [globalOutliers, setGlobalOutliers] = useState<any[]>([]);
+  const [globalVph, setGlobalVph] = useState<VelocityData[]>([]);
+  const [globalOutliers, setGlobalOutliers] = useState<VideoOutlier[]>([]);
 
   useEffect(() => {
-    DiscoveryClient.getStats().then(setStats).catch(() => {});
-    ViewStatsClient.getTopVelocity(5).then(setGlobalVph).catch(() => {});
-    ViewStatsClient.getGlobalOutliers(5).then(setGlobalOutliers).catch(() => {});
+    ResearchClient.getStats().then(setStats).catch(() => {});
+    TrendsClient.getTopVelocity(5).then(setGlobalVph).catch(() => {});
+    TrendsClient.getGlobalOutliers(5).then(setGlobalOutliers).catch(() => {});
   }, []);
 
   return (
     <div className="animate-in fade-in duration-500">
       <header className="flex justify-between items-center mb-10">
-        <h2 className="text-3xl font-light tracking-tight">Dashboard Overview</h2>
+        <h2 className="text-3xl font-light tracking-tight">Research faster. Analyze deeper. Save better ideas.</h2>
       </header>
 
       <div className="space-y-8">
@@ -70,7 +71,7 @@ export function DashboardHome({ onNavigate }: Props) {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {globalVph.map((vid: any, i: number) => (
+                {globalVph.map((vid: VelocityData, i: number) => (
                   <div key={i} className="flex items-center justify-between gap-4 py-2 border-b border-slate-800/60 last:border-0">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-slate-200 truncate">{vid.title}</p>
@@ -97,7 +98,7 @@ export function DashboardHome({ onNavigate }: Props) {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {globalOutliers.map((item: any, i: number) => (
+                {globalOutliers.map((item: VideoOutlier, i: number) => (
                   <div key={i} className="flex items-center gap-3 py-2 border-b border-slate-800/60 last:border-0">
                     {item.thumbnail_url && (
                       <img src={item.thumbnail_url} alt={item.title} className="w-16 h-10 object-cover rounded flex-shrink-0" />

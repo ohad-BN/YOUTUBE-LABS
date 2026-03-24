@@ -1,18 +1,18 @@
 import { useEffect, useState } from "react";
-import { SavedKeywordsClient } from "../../services/ApiClient";
+import { KeywordsClient, type SavedKeyword } from "../../services/ApiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Bookmark, X } from "lucide-react";
 import { toast } from "sonner";
 
 export function SavedKeywordsPanel() {
-  const [keywords, setKeywords] = useState<any[]>([]);
+  const [keywords, setKeywords] = useState<SavedKeyword[]>([]);
 
   useEffect(() => {
-    SavedKeywordsClient.list().then(setKeywords).catch(() => {});
+    KeywordsClient.list().then(setKeywords).catch(() => {});
   }, []);
 
   const handleDelete = async (id: number) => {
-    await SavedKeywordsClient.delete(id).catch(() => {});
+    await KeywordsClient.delete(id).catch(() => {});
     setKeywords((prev) => prev.filter((k) => k.id !== id));
     toast.success("Keyword removed");
   };

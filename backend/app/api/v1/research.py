@@ -1,12 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func as sqlfunc
 from app.db.session import get_db
 from app.models import Folder, ChannelFolderMapping, TrackedChannel, Video
 from app.schemas.folder import FolderCreate, FolderResponse
 from app.schemas.channel import ChannelResponse, ChannelSearchResult
 from app.schemas.video import VideoResponse
-from typing import List
+from typing import List, Optional
 from app.services.youtube_api import youtube_api
 import datetime
 
@@ -25,6 +25,65 @@ def calculate_grade(subscriber_count: int) -> str:
     if subscriber_count >= 10_000:     return "C"
     if subscriber_count >= 1_000:      return "D"
     return "F"
+
+async def _ingest_videos_page(
+    db: AsyncSession,
+    channel: TrackedChannel,
+    youtube_channel_id: str,
+    page_token: str | None = None,
+):
+    """Fetch one page of videos (50) from a channel's uploads playlist, store them, and return next_page_token."""
+    page_data = await youtube_api.get_channel_videos_page(youtube_channel_id, max_results=50, page_token=page_token)
+    items = page_data.get("items", [])
+    if not items:
+        return None
+
+    # Extract video IDs for batch stats fetch
+    video_ids = [
+        item.get("snippet", {}).get("resourceId", {}).get("videoId")
+        for item in items
+        if item.get("snippet", {}).get("resourceId", {}).get("videoId")
+    ]
+    video_details = await youtube_api.get_videos_batch(video_ids)
+
+    for item in items:
+        snippet = item.get("snippet", {})
+        vid_id = snippet.get("resourceId", {}).get("videoId")
+        if not vid_id:
+            continue
+
+        # Skip if already ingested
+        existing = await db.execute(
+            select(Video.id).where(Video.youtube_video_id == vid_id, Video.channel_id == channel.id).limit(1)
+        )
+        if existing.scalar_one_or_none() is not None:
+            continue
+
+        published_at_str = snippet.get("publishedAt", "")
+        if published_at_str:
+            published_at = datetime.datetime.fromisoformat(published_at_str.replace("Z", "+00:00"))
+        else:
+            published_at = datetime.datetime.now(datetime.timezone.utc)
+
+        details = video_details.get(vid_id, {})
+        stats = details.get("statistics", {})
+
+        db_video = Video(
+            youtube_video_id=vid_id,
+            channel_id=channel.id,
+            title=snippet.get("title", ""),
+            thumbnail_url=snippet.get("thumbnails", {}).get("high", {}).get("url", ""),
+            published_at=published_at,
+            view_count=int(stats.get("viewCount", 0)),
+            like_count=int(stats.get("likeCount", 0)),
+            comment_count=int(stats.get("commentCount", 0)),
+            outlier_score=1.0,
+            vph=0.0,
+        )
+        db.add(db_video)
+
+    return page_data.get("nextPageToken")
+
 
 @router.post("/folders", response_model=FolderResponse)
 async def create_folder(folder: FolderCreate, db: AsyncSession = Depends(get_db)):
@@ -53,33 +112,93 @@ async def add_channel_to_folder(folder_id: int, channel_id: int, db: AsyncSessio
         raise HTTPException(status_code=400, detail="Mapping already exists or IDs are invalid")
     return {"status": "success", "message": "Channel bounded to folder"}
 
-@router.get("/folders/{folder_id}/videos", response_model=List[VideoResponse])
-async def get_folder_videos(folder_id: int, db: AsyncSession = Depends(get_db)):
+@router.get("/folders/{folder_id}/videos")
+async def get_folder_videos(
+    folder_id: int,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    sort_by: str = Query("newest"),
+    sort_dir: str = Query("desc"),
+    search: Optional[str] = Query(None),
+    date_days: Optional[int] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
     """
-    Get aggregated video feed for all channels in a chosen folder.
-    Fulfills the Velio feature requirement exactly.
+    Paginated video feed for all channels in a folder.
+    Supports sorting, search, and date filtering.
     """
     mapping_query = await db.execute(
         select(ChannelFolderMapping.channel_id).where(ChannelFolderMapping.folder_id == folder_id)
     )
     channel_ids = mapping_query.scalars().all()
     if not channel_ids:
-        return []
-        
-    videos_query = await db.execute(
-        select(Video)
-        .where(Video.channel_id.in_(channel_ids))
-        .order_by(Video.published_at.desc())
-        .limit(100)
-    )
-    return videos_query.scalars().all()
+        return {"items": [], "total": 0, "page": page, "per_page": per_page}
+
+    base = select(Video).where(Video.channel_id.in_(channel_ids))
+
+    # Search filter
+    if search and search.strip():
+        base = base.where(Video.title.ilike(f"%{search.strip()}%"))
+
+    # Date filter
+    if date_days:
+        cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=date_days)
+        base = base.where(Video.published_at >= cutoff)
+
+    # Total count
+    count_q = await db.execute(select(sqlfunc.count()).select_from(base.subquery()))
+    total = count_q.scalar() or 0
+
+    # Sorting
+    sort_map = {
+        "newest": Video.published_at,
+        "most_views": Video.view_count,
+        "outlier_score": Video.outlier_score,
+        "vph": Video.vph,
+    }
+    sort_col = sort_map.get(sort_by, Video.published_at)
+    if sort_dir == "asc":
+        base = base.order_by(sort_col.asc().nullslast())
+    else:
+        base = base.order_by(sort_col.desc().nullslast())
+    # Secondary sort for stability
+    if sort_by != "newest":
+        base = base.order_by(Video.published_at.desc())
+
+    # Pagination
+    offset = (page - 1) * per_page
+    videos_query = await db.execute(base.offset(offset).limit(per_page))
+    videos = videos_query.scalars().all()
+
+    return {
+        "items": [
+            {
+                "id": v.id,
+                "title": v.title,
+                "youtube_video_id": v.youtube_video_id,
+                "channel_id": v.channel_id,
+                "view_count": v.view_count,
+                "thumbnail_url": v.thumbnail_url,
+                "published_at": v.published_at.isoformat() if v.published_at else None,
+                "like_count": v.like_count,
+                "comment_count": v.comment_count,
+                "outlier_score": v.outlier_score,
+                "vph": v.vph,
+            }
+            for v in videos
+        ],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+    }
 
 @router.post("/track/{youtube_channel_id}")
 async def track_new_channel(youtube_channel_id: str, db: AsyncSession = Depends(get_db)):
     """Fetch channel data from YouTube and start tracking it organically."""
-    existing = await db.execute(select(TrackedChannel).where(TrackedChannel.youtube_channel_id == youtube_channel_id))
-    if existing.scalar_one_or_none():
-        return {"status": "success", "message": "Channel is already tracked"}
+    existing_q = await db.execute(select(TrackedChannel).where(TrackedChannel.youtube_channel_id == youtube_channel_id))
+    existing = existing_q.scalar_one_or_none()
+    if existing:
+        return {"status": "success", "channel_id": existing.id}
         
     stats = await youtube_api.get_channel_stats(youtube_channel_id)
     if not stats:
@@ -101,42 +220,48 @@ async def track_new_channel(youtube_channel_id: str, db: AsyncSession = Depends(
     await db.commit()
     await db.refresh(new_channel)
     
-    # Ingest 10 recent videos with real stats
-    videos = await youtube_api.get_recent_videos(youtube_channel_id, max_results=10)
-    video_ids = [v.get("id", {}).get("videoId") for v in videos if v.get("id", {}).get("videoId")]
-    video_details = await youtube_api.get_videos_batch(video_ids)
-
-    for v in videos:
-        v_snippet = v.get("snippet", {})
-        vid_id = v.get("id", {}).get("videoId")
-        if not vid_id:
-            continue
-
-        published_at_str = v_snippet.get("publishedAt", "")
-        if published_at_str:
-            published_at = datetime.datetime.fromisoformat(published_at_str.replace('Z', '+00:00'))
-        else:
-            published_at = datetime.datetime.now(datetime.timezone.utc)
-
-        details = video_details.get(vid_id, {})
-        stats = details.get("statistics", {})
-
-        db_video = Video(
-            youtube_video_id=vid_id,
-            channel_id=new_channel.id,
-            title=v_snippet.get("title", ""),
-            thumbnail_url=v_snippet.get("thumbnails", {}).get("high", {}).get("url", ""),
-            published_at=published_at,
-            view_count=int(stats.get("viewCount", 0)),
-            like_count=int(stats.get("likeCount", 0)),
-            comment_count=int(stats.get("commentCount", 0)),
-            outlier_score=1.0,
-            vph=0.0
-        )
-        db.add(db_video)
+    # Ingest recent videos using the uploads playlist (cheap: 1 quota unit per page)
+    await _ingest_videos_page(db, new_channel, youtube_channel_id)
     await db.commit()
     
     return {"status": "success", "channel_id": new_channel.id}
+
+@router.post("/channels/{channel_id}/ingest-more")
+async def ingest_more_videos(
+    channel_id: int,
+    pages: int = Query(1, ge=1, le=10),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Fetch older videos for a tracked channel from YouTube.
+    Each page fetches 50 videos. Max 10 pages (500 videos) per call.
+    """
+    channel_q = await db.execute(select(TrackedChannel).where(TrackedChannel.id == channel_id))
+    channel = channel_q.scalar_one_or_none()
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+
+    # Find the oldest video we have to determine where to start paginating
+    # We need to iterate from the beginning and skip pages we already have
+    # Instead, just paginate from the start and _ingest_videos_page skips existing
+    page_token = None
+    total_new = 0
+    for _ in range(pages):
+        next_token = await _ingest_videos_page(db, channel, channel.youtube_channel_id, page_token)
+        await db.commit()
+        if not next_token:
+            break
+        page_token = next_token
+
+    # Count total videos now
+    count_q = await db.execute(
+        select(sqlfunc.count()).select_from(
+            select(Video.id).where(Video.channel_id == channel_id).subquery()
+        )
+    )
+    total_new = count_q.scalar() or 0
+
+    return {"status": "success", "total_videos": total_new}
 
 @router.get("/search", response_model=List[ChannelSearchResult])
 async def search_channels(q: str):
@@ -187,6 +312,21 @@ async def get_folder_channels(folder_id: int, db: AsyncSession = Depends(get_db)
             "avg_views_per_video": int(avg_views) if avg_views else None,
         })
     return results
+
+@router.patch("/folders/{folder_id}", response_model=FolderResponse)
+async def rename_folder(folder_id: int, folder: FolderCreate, db: AsyncSession = Depends(get_db)):
+    """Rename a folder (update name and/or tags)."""
+    result = await db.execute(
+        select(Folder).where(Folder.id == folder_id, Folder.user_id == CURRENT_USER_ID)
+    )
+    db_folder = result.scalar_one_or_none()
+    if not db_folder:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    db_folder.name = folder.name
+    db_folder.tags = folder.tags
+    await db.commit()
+    await db.refresh(db_folder)
+    return db_folder
 
 @router.delete("/folders/{folder_id}")
 async def delete_folder(folder_id: int, db: AsyncSession = Depends(get_db)):
@@ -380,3 +520,10 @@ async def preview_channel(youtube_channel_id: str):
         "upload_per_week": upload_per_week,
         "latest_video": latest_video,
     }
+
+
+@router.get("/trending")
+async def get_trending_videos(region: str = "US", limit: int = 24):
+    """Fetch globally trending videos from YouTube (no auth/tracking required)."""
+    results = await youtube_api.get_trending_videos(region_code=region, max_results=limit)
+    return results

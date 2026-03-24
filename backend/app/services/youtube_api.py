@@ -191,6 +191,72 @@ class YouTubeApiService:
                 logger.error(f"Failed to batch-fetch video stats: {e}")
                 return {}
 
+    async def get_trending_videos(self, region_code: str = "US", max_results: int = 24) -> list:
+        """Fetch globally trending videos from YouTube (chart=mostPopular)."""
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(
+                    f"{self.base_url}/videos",
+                    params={
+                        "part": "snippet,statistics",
+                        "chart": "mostPopular",
+                        "regionCode": region_code,
+                        "maxResults": max_results,
+                        "key": self.api_key,
+                    }
+                )
+                response.raise_for_status()
+                data = response.json()
+                results = []
+                for item in data.get("items", []):
+                    snippet = item.get("snippet", {})
+                    stats = item.get("statistics", {})
+                    results.append({
+                        "youtube_video_id": item["id"],
+                        "title": snippet.get("title", ""),
+                        "channel_title": snippet.get("channelTitle", ""),
+                        "thumbnail_url": snippet.get("thumbnails", {}).get("medium", {}).get("url"),
+                        "published_at": snippet.get("publishedAt"),
+                        "view_count": int(stats.get("viewCount", 0)),
+                        "like_count": int(stats.get("likeCount", 0)),
+                    })
+                return results
+            except httpx.HTTPError as e:
+                logger.error(f"Failed to fetch trending videos: {e}")
+                return []
+
+    async def get_channel_videos_page(
+        self, channel_id: str, max_results: int = 50, page_token: str | None = None
+    ) -> dict:
+        """
+        Fetch a page of videos from a channel's uploads playlist.
+        Uses playlistItems (1 quota unit) instead of search (100 units).
+        Returns { "items": [...], "nextPageToken": str | None, "totalResults": int }.
+        """
+        # Uploads playlist ID = channel ID with "UC" replaced by "UU"
+        uploads_playlist = "UU" + channel_id[2:] if channel_id.startswith("UC") else channel_id
+        async with httpx.AsyncClient() as client:
+            try:
+                params = {
+                    "part": "snippet",
+                    "playlistId": uploads_playlist,
+                    "maxResults": min(max_results, 50),
+                    "key": self.api_key,
+                }
+                if page_token:
+                    params["pageToken"] = page_token
+                response = await client.get(f"{self.base_url}/playlistItems", params=params)
+                response.raise_for_status()
+                data = response.json()
+                return {
+                    "items": data.get("items", []),
+                    "nextPageToken": data.get("nextPageToken"),
+                    "totalResults": data.get("pageInfo", {}).get("totalResults", 0),
+                }
+            except httpx.HTTPError as e:
+                logger.error(f"Failed to fetch playlist page for {channel_id}: {e}")
+                return {"items": [], "nextPageToken": None, "totalResults": 0}
+
     async def resolve_channel_id(self, query: str) -> str | None:
         """
         Resolve a YouTube channel URL, @handle, or search term to a channel ID.
