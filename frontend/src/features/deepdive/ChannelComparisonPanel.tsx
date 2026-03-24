@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FolderChannel, ChannelComparison } from "../../services/ApiClient";
-import { SocialBladeClient } from "../../services/ApiClient";
+import { AnalyticsClient } from "../../services/ApiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
 import { Button } from "../../components/ui/button";
@@ -35,7 +35,7 @@ export function ChannelComparisonPanel({ trackedChannels }: Props) {
     if (selectedIds.length < 2) return;
     setLoading(true);
     try {
-      const data = await SocialBladeClient.compareChannels(selectedIds);
+      const data = await AnalyticsClient.compareChannels(selectedIds);
       setComparisonData(data);
     } catch {
       setComparisonData([]);

@@ -38,12 +38,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from app.api.v1 import viewstats, velio, socialblade, vidiq
+from app.api.v1 import trends, research, analytics, ideas
 
-app.include_router(viewstats.router, prefix="/api/v1/viewstats", tags=["ViewStats"])
-app.include_router(velio.router, prefix="/api/v1/velio", tags=["Velio (Folders)"])
-app.include_router(socialblade.router, prefix="/api/v1/socialblade", tags=["SocialBlade"])
-app.include_router(vidiq.router, prefix="/api/v1/vidiq", tags=["VidIQ"])
+app.include_router(trends.router, prefix="/api/v1/trends", tags=["Trends"])
+app.include_router(research.router, prefix="/api/v1/research", tags=["Research"])
+app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytics"])
+app.include_router(ideas.router, prefix="/api/v1/ideas", tags=["Ideas"])
 
 @app.get("/")
 async def root():

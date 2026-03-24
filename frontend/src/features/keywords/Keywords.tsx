@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { VidIQClient, ViewStatsClient, SavedKeywordsClient, type IdeaData } from "../../services/ApiClient";
+import { IdeasClient, TrendsClient, KeywordsClient, type IdeaData } from "../../services/ApiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -22,7 +22,7 @@ const STATUS_COLORS: Record<string, string> = {
   discarded: "text-red-400 border-red-800",
 };
 
-export function VidIQDashboard() {
+export function Keywords() {
   const [ideaTitle, setIdeaTitle] = useState("");
   const [ideaCategory, setIdeaCategory] = useState("");
   const [ideaNotes, setIdeaNotes] = useState("");
@@ -39,7 +39,7 @@ export function VidIQDashboard() {
       .filter((i) => i.video_reference_id && !videoThumbnails[i.video_reference_id])
       .map((i) => i.video_reference_id as number);
     for (const id of idsToFetch) {
-      ViewStatsClient.getVideoDetail(id)
+      TrendsClient.getVideoDetail(id)
         .then((detail) => {
           if (detail?.thumbnail_url) {
             setVideoThumbnails((prev) => ({ ...prev, [id]: detail.thumbnail_url! }));
@@ -52,7 +52,7 @@ export function VidIQDashboard() {
   useEffect(() => {
     let mounted = true;
     const init = async () => {
-      const data = await VidIQClient.getSavedIdeas().catch(() => []);
+      const data = await IdeasClient.getSavedIdeas().catch(() => []);
       if (mounted) {
         setLibrary(data || []);
         await loadThumbnails(data || []);
@@ -67,20 +67,20 @@ export function VidIQDashboard() {
     if (!vid) return;
     setLoadingKeywords(true);
     setKeywordResult(null);
-    const result = await VidIQClient.extractVideoKeywords(vid).catch(() => null);
+    const result = await IdeasClient.extractVideoKeywords(vid).catch(() => null);
     setKeywordResult(result);
     setLoadingKeywords(false);
   };
 
   const handleStatusClick = async (idea: IdeaData) => {
     const next = STATUS_CYCLE[idea.status ?? "backlog"] ?? "backlog";
-    await VidIQClient.updateIdeaStatus(idea.id, next).catch(() => {});
+    await IdeasClient.updateIdeaStatus(idea.id, next).catch(() => {});
     setLibrary((prev) => prev.map((i) => i.id === idea.id ? { ...i, status: next } : i));
   };
 
   const handleSaveIdea = async () => {
     if (!ideaTitle.trim()) return;
-    const idea = await VidIQClient.saveIdea(ideaTitle, ideaCategory || "Uncategorized", ideaNotes || undefined).catch(() => null);
+    const idea = await IdeasClient.saveIdea(ideaTitle, ideaCategory || "Uncategorized", ideaNotes || undefined).catch(() => null);
     if (idea) {
       setIdeaTitle("");
       setIdeaCategory("");
@@ -106,7 +106,7 @@ export function VidIQDashboard() {
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex items-center gap-3 mb-6">
         <Flame className="w-8 h-8 text-synthwave-purple drop-shadow-[0_0_10px_rgba(138,43,226,0.8)]" />
-        <h2 className="text-3xl font-light tracking-tight text-white">VidIQ Intelligence</h2>
+        <h2 className="text-3xl font-light tracking-tight text-white">Keyword Lab</h2>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -157,7 +157,7 @@ export function VidIQDashboard() {
                   {keywordResult.keywords.map((kw, i) => (
                     <Badge
                       key={i}
-                      onClick={() => SavedKeywordsClient.save(kw, videoIdInput.trim()).then(() => toast.success(`"${kw}" saved`)).catch(() => {})}
+                      onClick={() => KeywordsClient.save(kw, videoIdInput.trim()).then(() => toast.success(`"${kw}" saved`)).catch(() => {})}
                       className="bg-slate-800 text-slate-300 border border-slate-700 hover:border-synthwave-purple hover:text-synthwave-purple transition-colors cursor-pointer"
                       title="Click to bookmark"
                     >

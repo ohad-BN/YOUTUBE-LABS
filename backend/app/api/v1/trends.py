@@ -86,7 +86,7 @@ async def get_global_outliers(limit: int = 10, db: AsyncSession = Depends(get_db
 async def get_channel_outliers(channel_id: int, db: AsyncSession = Depends(get_db)):
     """
     Get videos that significantly outperform a channel's average view count.
-    This replicates the core ViewStats outlier engine.
+    Returns outlier videos based on channel average view performance.
     """
     # 1. Get channel
     channel_query = await db.execute(select(TrackedChannel).where(TrackedChannel.id == channel_id))

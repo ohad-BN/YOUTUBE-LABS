@@ -1,27 +1,27 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import type { VelocityData, VideoOutlier } from "../../services/ApiClient";
-import { DiscoveryClient, ViewStatsClient } from "../../services/ApiClient";
+import { ResearchClient, TrendsClient } from "../../services/ApiClient";
 
 interface Props {
   onNavigate: (tab: string) => void;
 }
 
-export function DashboardHome({ onNavigate }: Props) {
+export function Home({ onNavigate }: Props) {
   const [stats, setStats] = useState<{ total_channels: number; total_videos: number; total_folders: number } | null>(null);
   const [globalVph, setGlobalVph] = useState<VelocityData[]>([]);
   const [globalOutliers, setGlobalOutliers] = useState<VideoOutlier[]>([]);
 
   useEffect(() => {
-    DiscoveryClient.getStats().then(setStats).catch(() => {});
-    ViewStatsClient.getTopVelocity(5).then(setGlobalVph).catch(() => {});
-    ViewStatsClient.getGlobalOutliers(5).then(setGlobalOutliers).catch(() => {});
+    ResearchClient.getStats().then(setStats).catch(() => {});
+    TrendsClient.getTopVelocity(5).then(setGlobalVph).catch(() => {});
+    TrendsClient.getGlobalOutliers(5).then(setGlobalOutliers).catch(() => {});
   }, []);
 
   return (
     <div className="animate-in fade-in duration-500">
       <header className="flex justify-between items-center mb-10">
-        <h2 className="text-3xl font-light tracking-tight">Dashboard Overview</h2>
+        <h2 className="text-3xl font-light tracking-tight">Research faster. Analyze deeper. Save better ideas.</h2>
       </header>
 
       <div className="space-y-8">

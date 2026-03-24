@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { FolderChannel, VideoOutlier, VelocityData } from "../../services/ApiClient";
-import { ViewStatsClient, DiscoveryClient, VidIQClient } from "../../services/ApiClient";
+import { TrendsClient, ResearchClient, IdeasClient } from "../../services/ApiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
 import { Activity, Bookmark, Zap } from "lucide-react";
@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { VideoDetailModal } from "./VideoDetailModal";
 import { Skeleton } from "../../components/ui/skeleton";
 
-export function ViewStatsDashboard() {
+export function Trends() {
   const [trackedChannels, setTrackedChannels] = useState<FolderChannel[]>([]);
   const [activeChannelId, setActiveChannelId] = useState<number | null>(null);
   const [outliers, setOutliers] = useState<VideoOutlier[]>([]);
@@ -17,7 +17,7 @@ export function ViewStatsDashboard() {
   const [selectedVideoId, setSelectedVideoId] = useState<number | null>(null);
 
   useEffect(() => {
-    DiscoveryClient.getTrackedChannels()
+    ResearchClient.getTrackedChannels()
       .then((data) => {
         setTrackedChannels(data || []);
         if (data && data.length > 0) setActiveChannelId(data[0].id);
@@ -30,8 +30,8 @@ export function ViewStatsDashboard() {
     async function fetchData() {
       try {
         setLoading(true);
-        const outlierData = await ViewStatsClient.getOutliers(activeChannelId!).catch(() => []);
-        const velocityData = await ViewStatsClient.getTopVelocity(5).catch(() => []);
+        const outlierData = await TrendsClient.getOutliers(activeChannelId!).catch(() => []);
+        const velocityData = await TrendsClient.getTopVelocity(5).catch(() => []);
         setOutliers(outlierData || []);
         setVelocity(velocityData || []);
       } finally {
@@ -46,12 +46,12 @@ export function ViewStatsDashboard() {
       
       <div className="flex items-center gap-3 mb-6">
         <Zap className="w-8 h-8 text-synthwave-cyan drop-shadow-[0_0_10px_rgba(0,255,255,0.8)]" />
-        <h2 className="text-3xl font-light tracking-tight text-white">ViewStats Engine</h2>
+        <h2 className="text-3xl font-light tracking-tight text-white">Trend Radar</h2>
       </div>
 
       {trackedChannels.length === 0 ? (
         <div className="py-20 text-center text-slate-500">
-          No channels tracked yet. Use <span className="text-synthwave-cyan">Discover Channels</span> to add some.
+          No channels tracked yet. Use <span className="text-synthwave-cyan">Research</span> to add some.
         </div>
       ) : (
         <div className="flex flex-wrap gap-2 mb-6">
@@ -111,7 +111,7 @@ export function ViewStatsDashboard() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        VidIQClient.saveIdea(item.video!.title, "Outlier", undefined, item.video!.id)
+                        IdeasClient.saveIdea(item.video!.title, "Outlier", undefined, item.video!.id)
                           .then(() => toast.success("Saved to Ideas library"))
                           .catch(() => toast.error("Failed to save idea"));
                       }}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { FolderChannel, ProjectionData, ChannelStats } from "../../services/ApiClient";
-import { SocialBladeClient, DiscoveryClient } from "../../services/ApiClient";
+import { AnalyticsClient, ResearchClient } from "../../services/ApiClient";
 import { ChannelComparisonPanel } from "./ChannelComparisonPanel";
 import {
   Card,
@@ -35,22 +35,22 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-export function SocialBladeDashboard() {
+export function DeepDive() {
   const [projections, setProjections] = useState<ProjectionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [trackedChannels, setTrackedChannels] = useState<FolderChannel[]>([]);
   const [activeChannelId, setActiveChannelId] = useState<number | null>(null);
   const [dailyStats, setDailyStats] = useState<ChannelStats[]>([]);
-  const [view, setView] = useState<"projections" | "compare">("projections");
+  const [view, setView] = useState<"forecasts" | "compare">("forecasts");
   const [chartDays, setChartDays] = useState(30);
 
   const REPORT_URL = (id: number) =>
-    `${import.meta.env.VITE_API_URL ?? "/api/v1"}/socialblade/channels/${id}/report`;
+    `${import.meta.env.VITE_API_URL ?? "/api/v1"}/analytics/channels/${id}/report`;
 
   // Load tracked channels on mount
   useEffect(() => {
     async function loadChannels() {
-      const data = await DiscoveryClient.getTrackedChannels().catch(() => []);
+      const data = await ResearchClient.getTrackedChannels().catch(() => []);
       setTrackedChannels(data);
       setActiveChannelId(data[0]?.id ?? null);
     }
@@ -64,8 +64,8 @@ export function SocialBladeDashboard() {
     async function loadData() {
       setLoading(true);
       const [projData, statsData] = await Promise.all([
-        SocialBladeClient.getProjections(activeChannelId!).catch(() => null),
-        SocialBladeClient.getStats(activeChannelId!, chartDays).catch(
+        AnalyticsClient.getProjections(activeChannelId!).catch(() => null),
+        AnalyticsClient.getStats(activeChannelId!, chartDays).catch(
           () => [],
         ),
       ]);
@@ -83,7 +83,7 @@ export function SocialBladeDashboard() {
       <div className="flex items-center gap-3 mb-2">
         <Activity className="w-8 h-8 text-synthwave-cyan drop-shadow-[0_0_10px_rgba(0,255,255,0.8)]" />
         <h2 className="text-3xl font-light tracking-tight text-white">
-          SocialBlade Projections
+          Channel Analysis & Forecasts
         </h2>
       </div>
 
@@ -91,17 +91,17 @@ export function SocialBladeDashboard() {
       <div className="flex flex-wrap items-center gap-2 justify-between">
         <div className="flex flex-wrap gap-2">
           {/* View toggle */}
-          {["projections", "compare"].map((v) => (
+          {["forecasts", "compare"].map((v) => (
             <button
               key={v}
-              onClick={() => setView(v as "projections" | "compare")}
+              onClick={() => setView(v as "forecasts" | "compare")}
               className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all border ${
                 view === v
                   ? "bg-synthwave-magenta/20 border-synthwave-magenta text-synthwave-magenta shadow-[0_0_8px_rgba(180,0,255,0.4)]"
                   : "bg-slate-800/60 border-slate-700 text-slate-400 hover:border-synthwave-magenta/50 hover:text-white"
               }`}
             >
-              {v === "projections" ? "Projections" : "Compare"}
+              {v === "forecasts" ? "Forecasts" : "Compare"}
             </button>
           ))}
           <span className="w-px h-6 bg-slate-700 self-center mx-1" />
@@ -112,13 +112,13 @@ export function SocialBladeDashboard() {
         <ChannelComparisonPanel trackedChannels={trackedChannels} />
       )}
 
-      {view === "projections" && (
+      {view === "forecasts" && (
         <>
           <div className="flex flex-wrap items-center gap-2 justify-between">
             <div className="flex flex-wrap gap-2">
               {trackedChannels.length === 0 ? (
                 <p className="text-synthwave-cyan text-sm">
-                  No channels tracked yet. Use Discover Channels to add some.
+                  No channels tracked yet. Use Research to add some.
                 </p>
               ) : (
                 trackedChannels.map((ch) => (
@@ -144,7 +144,7 @@ export function SocialBladeDashboard() {
                   className="border-slate-700 text-slate-300 hover:border-synthwave-cyan hover:text-synthwave-cyan"
                   onClick={() =>
                     window.open(
-                      SocialBladeClient.exportCsv(activeChannelId),
+                      AnalyticsClient.exportCsv(activeChannelId),
                       "_blank",
                     )
                   }

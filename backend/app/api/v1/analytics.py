@@ -47,7 +47,7 @@ async def get_daily_stats(channel_id: int, limit: int = 30, db: AsyncSession = D
 async def get_channel_projections(channel_id: int, db: AsyncSession = Depends(get_db)):
     """
     Generate 30/60/90 day projections based on the channel's recent stats (e.g. last 30 days avg).
-    This fulfills the core SocialBlade features.
+    Returns 30/60/90 day projections based on the channel's recent stats.
     """
     # 1. Fetch channel
     channel_query = await db.execute(select(TrackedChannel).where(TrackedChannel.id == channel_id))

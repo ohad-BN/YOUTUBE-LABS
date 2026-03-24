@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { ExternalLink, Eye, ThumbsUp, MessageSquare, Zap, TrendingUp } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../components/ui/dialog";
 import { Badge } from "../../components/ui/badge";
-import { ViewStatsClient, type VideoDetail } from "../../services/ApiClient";
+import { TrendsClient, type VideoDetail } from "../../services/ApiClient";
 
 interface ThumbnailHistory {
   thumbnail_url: string;
@@ -39,7 +39,7 @@ export function VideoDetailModal({ videoId, onClose }: Props) {
     const load = async () => {
       if (mounted) setLoading(true);
       try {
-        const data = await ViewStatsClient.getVideoDetail(videoId);
+        const data = await TrendsClient.getVideoDetail(videoId);
         if (mounted) setDetail(data);
       } catch (err) {
         if (mounted) {

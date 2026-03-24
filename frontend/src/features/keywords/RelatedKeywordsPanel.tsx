@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { VidIQClient, SavedKeywordsClient } from "../../services/ApiClient";
+import { IdeasClient, KeywordsClient } from "../../services/ApiClient";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { toast } from "sonner";
@@ -16,7 +16,7 @@ export function RelatedKeywordsPanel({ seedKeyword }: Props) {
   const load = async () => {
     if (!seedKeyword || loading) return;
     setLoading(true);
-    const res = await VidIQClient.getRelatedKeywords(seedKeyword).catch(() => null);
+    const res = await IdeasClient.getRelatedKeywords(seedKeyword).catch(() => null);
     setSuggestions(res?.suggestions ?? []);
     setLoaded(seedKeyword);
     setLoading(false);
@@ -44,7 +44,7 @@ export function RelatedKeywordsPanel({ seedKeyword }: Props) {
           {suggestions.map((s, i) => (
             <Badge
               key={i}
-              onClick={() => SavedKeywordsClient.save(s).then(() => toast.success(`"${s}" saved`)).catch(() => {})}
+              onClick={() => KeywordsClient.save(s).then(() => toast.success(`"${s}" saved`)).catch(() => {})}
               className="text-xs bg-slate-800/60 border border-slate-700 text-slate-400 hover:border-synthwave-cyan hover:text-synthwave-cyan cursor-pointer transition-colors"
               title="Click to bookmark"
             >
